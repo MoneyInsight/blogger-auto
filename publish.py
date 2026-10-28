@@ -30,9 +30,9 @@ QUEUE = ROOT / "posts" / "queue"
 DONE = ROOT / "posts" / "published"
 FAILED = ROOT / "posts" / "failed"
 
-CLIENT_ID = os.environ["BLOGGER_CLIENT_ID"]
-CLIENT_SECRET = os.environ["BLOGGER_CLIENT_SECRET"]
-REFRESH_TOKEN = os.environ["BLOGGER_REFRESH_TOKEN"]
+CLIENT_ID = os.environ.get("BLOGGER_CLIENT_ID", "").strip()
+CLIENT_SECRET = os.environ.get("BLOGGER_CLIENT_SECRET", "").strip()
+REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN", "").strip()
 BLOG_ID = os.environ.get("BLOGGER_BLOG_ID", "").strip()
 BLOG_URL = os.environ.get("BLOGGER_BLOG_URL", "").strip()
 
@@ -171,5 +171,31 @@ def main():
         sys.exit(1)
 
 
+def report_fatal(msg: str):
+    """치명적 오류를 저장소에 남겨서 Claude가 원인을 읽을 수 있게 합니다 (열쇠 값은 남기지 않음)."""
+    for v in (CLIENT_SECRET, REFRESH_TOKEN):
+        if v:
+            msg = msg.replace(v, "***")
+    (ROOT / "posts").mkdir(exist_ok=True)
+    (ROOT / "posts" / "last_error.txt").write_text(msg, encoding="utf-8")
+    try:
+        git_commit("블로거 발행 오류 기록")
+    except Exception:
+        pass
+    print(msg)
+    sys.exit(1)
+
+
 if __name__ == "__main__":
-    main()
+    missing = [n for n, v in (("BLOGGER_CLIENT_ID", CLIENT_ID), ("BLOGGER_CLIENT_SECRET", CLIENT_SECRET), ("BLOGGER_REFRESH_TOKEN", REFRESH_TOKEN)) if not v]
+    if missing:
+        report_fatal("[오류] Secrets가 비어 있음: " + ", ".join(missing))
+    try:
+        main()
+    except SystemExit as e:
+        if e.code not in (0, None, 1) and isinstance(e.code, str):
+            report_fatal(e.code)
+        raise
+    except Exception as e:
+        import traceback
+        report_fatal("[오류] " + "".join(traceback.format_exception(e)))
