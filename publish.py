@@ -7,6 +7,7 @@
 글폴더 구성 예시
   posts/queue/2026-10-28-0700-economy/
     post.json   {"title": "제목", "labels": ["경제", "주식"], "publish_at": "2026-10-28T07:00:00+09:00"}
+                IT 블로그(itdigitaldream)로 보낼 글은 "blog": "it" 추가
     post.html   본문 HTML (이미지는 <img src="thumb.jpg"> 처럼 파일 이름만 써도 됨)
     thumb.jpg   첫 번째 이미지 = 블로거 대표이미지(썸네일)
     img1.jpg ...
@@ -33,7 +34,7 @@ FAILED = ROOT / "posts" / "failed"
 def _clean(name: str) -> str:
     """'BLOGGER_X = 값' 처럼 줄 전체를 붙여넣었거나 공백·따옴표가 섞여도 값만 꺼냅니다."""
     v = os.environ.get(name, "").strip()
-    if "=" in v and v.split("=", 1)[0].strip().startswith("BLOGGER_"):
+    if "=" in v and v.split("=", 1)[0].strip().startswith(("BLOGGER_", "IT_")):
         v = v.split("=", 1)[1]
     v = v.strip().strip('"').strip("'").strip()
     return v.split()[0] if v else ""
@@ -45,6 +46,10 @@ REFRESH_TOKEN = _clean("BLOGGER_REFRESH_TOKEN")
 BLOG_ID = _clean("BLOGGER_BLOG_ID")
 BLOG_URL = os.environ.get("BLOGGER_BLOG_URL", "").strip()
 
+# IT 블로그(itdigitaldream) — 다른 구글 계정. post.json 에 "blog": "it" 이면 이쪽으로 발행
+IT_REFRESH_TOKEN = _clean("IT_REFRESH_TOKEN")
+IT_BLOG_ID = _clean("IT_BLOG_ID")
+
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 SHA = os.environ.get("GITHUB_SHA", "main")
 
@@ -52,13 +57,13 @@ API = "https://www.googleapis.com/blogger/v3"
 IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
-def get_access_token() -> str:
+def get_access_token(refresh_token: str = None) -> str:
     r = requests.post(
         "https://oauth2.googleapis.com/token",
         data={
             "client_id": CLIENT_ID,
             "client_secret": CLIENT_SECRET,
-            "refresh_token": REFRESH_TOKEN,
+            "refresh_token": refresh_token or REFRESH_TOKEN,
             "grant_type": "refresh_token",
         },
         timeout=30,
@@ -177,12 +182,29 @@ def main():
         print("발행할 글이 없습니다.")
         return
 
-    token = get_access_token()
-    blog_id = resolve_blog_id(token)
+    targets = {}  # "main" / "it" → (token, blog_id), 필요할 때 한 번만 발급
+
+    def target(name):
+        if name not in targets:
+            if name == "it":
+                if not (IT_REFRESH_TOKEN and IT_BLOG_ID):
+                    raise RuntimeError("IT 블로그 Secrets(IT_REFRESH_TOKEN, IT_BLOG_ID)가 비어 있음")
+                try:
+                    targets[name] = (get_access_token(IT_REFRESH_TOKEN), IT_BLOG_ID)
+                except SystemExit as e:  # IT 열쇠 문제가 경제·건강 글까지 막지 않게
+                    raise RuntimeError(f"IT 블로그 {e.code}")
+            else:
+                tok = get_access_token()
+                targets[name] = (tok, resolve_blog_id(tok))
+        return targets[name]
+
     ok, fail = 0, 0
 
     for folder in folders:
         try:
+            meta0 = json.loads((folder / "post.json").read_text(encoding="utf-8"))
+            which = "it" if str(meta0.get("blog", "")).lower() == "it" else "main"
+            token, blog_id = target(which)
             res = publish(token, blog_id, folder)
             meta_path = folder / "post.json"
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -205,7 +227,7 @@ def main():
 def report_fatal(msg: str):
     """치명적 오류를 저장소에 남겨서 Claude가 원인을 읽을 수 있게 합니다 (열쇠 값은 남기지 않음)."""
     msg += f"\n(BLOG_ID 숫자 여부 {BLOG_ID.isdigit()}, CLIENT_ID 형식 정상 {CLIENT_ID.endswith('.apps.googleusercontent.com')})"
-    for v in (CLIENT_SECRET, REFRESH_TOKEN):
+    for v in (CLIENT_SECRET, REFRESH_TOKEN, IT_REFRESH_TOKEN):
         if v:
             msg = msg.replace(v, "***")
     (ROOT / "posts").mkdir(exist_ok=True)

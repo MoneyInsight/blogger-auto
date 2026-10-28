@@ -33,4 +33,6 @@ jobs:
           BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
           BLOGGER_BLOG_ID: ${{ secrets.BLOGGER_BLOG_ID }}
           BLOGGER_BLOG_URL: ${{ secrets.BLOGGER_BLOG_URL }}
+          IT_REFRESH_TOKEN: ${{ secrets.IT_REFRESH_TOKEN }}
+          IT_BLOG_ID: ${{ secrets.IT_BLOG_ID }}
         run: python publish.py
