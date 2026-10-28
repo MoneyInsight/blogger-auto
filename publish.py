@@ -182,7 +182,7 @@ def main():
 
 def report_fatal(msg: str):
     """치명적 오류를 저장소에 남겨서 Claude가 원인을 읽을 수 있게 합니다 (열쇠 값은 남기지 않음)."""
-    msg += f"\n(CLIENT_ID 형식 점검: 길이 {len(CLIENT_ID)}, 끝부분 '{CLIENT_ID[-27:]}', BLOG_ID 숫자 여부 {BLOG_ID.isdigit()})"
+    msg += f"\n(BLOG_ID 숫자 여부 {BLOG_ID.isdigit()}, CLIENT_ID 형식 정상 {CLIENT_ID.endswith('.apps.googleusercontent.com')})"
     for v in (CLIENT_SECRET, REFRESH_TOKEN):
         if v:
             msg = msg.replace(v, "***")
