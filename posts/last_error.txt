@@ -1,5 +1,0 @@
-[오류] 구글 토큰 갱신 실패: {
-  "error": "invalid_client",
-  "error_description": "The OAuth client was not found."
-}
-→ OAuth 동의 화면이 '테스트' 상태면 7일마다 토큰이 만료됩니다. '프로덕션'으로 게시 후 get_token.py를 다시 실행하세요.

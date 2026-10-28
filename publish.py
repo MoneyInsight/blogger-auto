@@ -30,10 +30,19 @@ QUEUE = ROOT / "posts" / "queue"
 DONE = ROOT / "posts" / "published"
 FAILED = ROOT / "posts" / "failed"
 
-CLIENT_ID = os.environ.get("BLOGGER_CLIENT_ID", "").strip()
-CLIENT_SECRET = os.environ.get("BLOGGER_CLIENT_SECRET", "").strip()
-REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN", "").strip()
-BLOG_ID = os.environ.get("BLOGGER_BLOG_ID", "").strip()
+def _clean(name: str) -> str:
+    """'BLOGGER_X = 값' 처럼 줄 전체를 붙여넣었거나 공백·따옴표가 섞여도 값만 꺼냅니다."""
+    v = os.environ.get(name, "").strip()
+    if "=" in v and v.split("=", 1)[0].strip().startswith("BLOGGER_"):
+        v = v.split("=", 1)[1]
+    v = v.strip().strip('"').strip("'").strip()
+    return v.split()[0] if v else ""
+
+
+CLIENT_ID = _clean("BLOGGER_CLIENT_ID")
+CLIENT_SECRET = _clean("BLOGGER_CLIENT_SECRET")
+REFRESH_TOKEN = _clean("BLOGGER_REFRESH_TOKEN")
+BLOG_ID = _clean("BLOGGER_BLOG_ID")
 BLOG_URL = os.environ.get("BLOGGER_BLOG_URL", "").strip()
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
@@ -173,6 +182,7 @@ def main():
 
 def report_fatal(msg: str):
     """치명적 오류를 저장소에 남겨서 Claude가 원인을 읽을 수 있게 합니다 (열쇠 값은 남기지 않음)."""
+    msg += f"\n(CLIENT_ID 형식 점검: 길이 {len(CLIENT_ID)}, 끝부분 '{CLIENT_ID[-27:]}', BLOG_ID 숫자 여부 {BLOG_ID.isdigit()})"
     for v in (CLIENT_SECRET, REFRESH_TOKEN):
         if v:
             msg = msg.replace(v, "***")
