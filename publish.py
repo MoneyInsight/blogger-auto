@@ -107,8 +107,30 @@ def build_html(folder: Path) -> str:
     return re.sub(r'(<img[^>]*?\ssrc=["\'])([^"\']+)(["\'])', swap, html, flags=re.I)
 
 
+def update(token: str, blog_id: str, folder: Path, meta: dict) -> dict:
+    """post.json에 "update_of": 글ID 가 있으면 새 글 대신 기존 글을 수정합니다 (라벨·제목·본문)."""
+    body = {}
+    if "labels" in meta:
+        body["labels"] = meta["labels"]
+    if meta.get("title"):
+        body["title"] = meta["title"]
+    if (folder / "post.html").exists():
+        body["content"] = build_html(folder)
+    r = requests.patch(
+        f"{API}/blogs/{blog_id}/posts/{meta['update_of']}",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        data=json.dumps(body),
+        timeout=60,
+    )
+    if r.status_code != 200:
+        raise RuntimeError(f"{r.status_code} {r.text}")
+    return r.json()
+
+
 def publish(token: str, blog_id: str, folder: Path) -> dict:
     meta = json.loads((folder / "post.json").read_text(encoding="utf-8"))
+    if meta.get("update_of"):
+        return update(token, blog_id, folder, meta)
     body = {
         "kind": "blogger#post",
         "title": meta["title"],
@@ -167,7 +189,7 @@ def main():
             meta.update({"blogger_id": res.get("id"), "url": res.get("url"), "status": res.get("status")})
             meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
             move(folder, DONE)
-            print(f"[발행 완료] {meta['title']} → {res.get('url') or res.get('status')}")
+            print(f"[완료] {meta.get('title') or res.get('title')} → {res.get('url') or res.get('status')}")
             ok += 1
         except Exception as e:
             (folder / "error.txt").write_text(str(e), encoding="utf-8")
