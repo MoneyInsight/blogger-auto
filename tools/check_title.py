@@ -19,6 +19,7 @@ PUNCH = {
     "비교": [" vs ", "VS", "보다", "차이"],
     "나만몰랐다": ["벌써", "남들은", "나만", "몰랐"],
 }
+FRESH = ["오늘", "이번 주", "지금", "당장", "10월", "11월", "2026", "막 ", "방금", "벌써", "올해"]
 BAD_TAIL = ["정리", "알아보기", "알아보자", "의미", "결과", "확인", "방법", "총정리", "가이드", "체크리스트", "꿀팁", "해야 할 일"]
 
 def check(title, kw):
@@ -43,13 +44,18 @@ def check(title, kw):
     if not any(b in tail for b in BAD_TAIL) and title.rstrip()[-1:] in "?!…" or any(x in title[-8:] for x in ["이유는", "1위", "결국", "의외", "뒤집", "폭탄", "함정", "무섭", "위험", "끝났", "사라진", "터진", "날린다", "털린다", "놓쳤다"]):
         score += 1
     else: issues.append("끝을 궁금증·충격으로 끊기 ('…이유는?', '…1위는 의외', '…결국 ○○'), 설명형 꼬리 금지")
+    emo = [e for e in EMOTION if e in title]
+    if len(emo) >= 2: score += 1
+    else: issues.append("감정 단어 2개 이상 겹치기 (털린다+결국, 폭탄+경고 등)")
+    if any(f in title for f in FRESH): score += 1
+    else: issues.append("신선도 단어 1개 (오늘·이번 주·지금·당장·10월·2026년·막 등)")
     return score, issues
 
 if __name__ == "__main__":
     title = sys.argv[1]; kw = sys.argv[2] if len(sys.argv) > 2 else ""
     score, issues = check(title, kw)
-    if score >= 7:
-        print(f"PASS ({score}/7)"); sys.exit(0)
-    print(f"FAIL ({score}/7) — 제목을 다시 써서 재검사:")
+    if score >= 8:
+        print(f"PASS ({score}/9)"); sys.exit(0)
+    print(f"FAIL ({score}/9) — 제목을 다시 써서 재검사:")
     for i in issues: print(" -", i)
     sys.exit(1)
