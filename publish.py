@@ -109,7 +109,14 @@ def build_html(folder: Path) -> str:
             return f'{m.group(1)}{image_url(folder, name)}{m.group(3)}'
         return m.group(0)
 
-    return re.sub(r'(<img[^>]*?\ssrc=["\'])([^"\']+)(["\'])', swap, html, flags=re.I)
+    html = re.sub(r'(<img[^>]*?\ssrc=["\'])([^"\']+)(["\'])', swap, html, flags=re.I)
+
+    def responsive(m):
+        tag = re.sub(r'\s(?:style|width|height)=("[^"]*"|\'[^\']*\')', '', m.group(0))
+        tag = re.sub(r'\s*/?>$', '', tag)
+        return tag + ' style="max-width:100%;width:100%;height:auto;display:block;margin:0 auto;" />'
+
+    return re.sub(r'<img\b[^>]*>', responsive, html, flags=re.I)
 
 
 def update(token: str, blog_id: str, folder: Path, meta: dict) -> dict:
