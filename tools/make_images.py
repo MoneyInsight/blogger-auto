@@ -54,39 +54,59 @@ def thumb(spec, out):
     im = Image.new("RGB", (W, H), bg); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, W, 14], fill=acc)
     if spec.get("top"):
-        center(d, 80, spec["top"], fit(d, spec["top"], "Bold", 64, W - 120), fg, W)
-    center(d, 185, spec["main1"], fit(d, spec["main1"], "Black", 128, W - 80), acc, W)
+        center(d, 80, spec["top"], fit(d, spec["top"], "Bold", 64, W - 240), fg, W)
+    center(d, 185, spec["main1"], fit(d, spec["main1"], "Black", 128, W - 240), acc, W)
     if spec.get("main2"):
-        center(d, 345, spec["main2"], fit(d, spec["main2"], "Black", 128, W - 80), fg, W)
+        center(d, 345, spec["main2"], fit(d, spec["main2"], "Black", 128, W - 240), fg, W)
     if spec.get("badge"):
-        f = fit(d, spec["badge"], "Black", 56, W - 260)
+        f = fit(d, spec["badge"], "Black", 56, W - 400)
         bw = d.textlength(spec["badge"], font=f) + 100
         d.rounded_rectangle([(W - bw) / 2, 555, (W + bw) / 2, 660], radius=52, fill=badge)
         center(d, 570, spec["badge"], f, "#FFFFFF", W)
     if spec.get("bottom"):
-        center(d, 700, spec["bottom"], fit(d, spec["bottom"], "Medium", 36, W - 120), sub, W)
+        center(d, 700, spec["bottom"], fit(d, spec["bottom"], "Medium", 36, W - 240), sub, W)
     im.save(out, quality=86, optimize=True)
+
+def wrap(d, text, f, maxw):
+    lines, cur = [], ""
+    for ch in text:
+        if d.textlength(cur + ch, font=f) > maxw and cur:
+            lines.append(cur); cur = ch.lstrip()
+        else:
+            cur += ch
+    if cur: lines.append(cur)
+    return lines
 
 def card(spec, out):
     items = spec.get("items", [])
-    W = 1200; H = 200 + 170 * len(items) + 60
+    W = 1200; PAD = 130; maxw = W - 2 * PAD - 40
     bg, fg, acc, sub, _ = THEMES.get(spec.get("theme", "light"), THEMES["light"])
-    im = Image.new("RGB", (W, H), bg); d = ImageDraw.Draw(im)
-    center(d, 55, spec["title"], fit(d, spec["title"], "Black", 58, W - 100), acc if bg != "#FFFFFF" else fg, W)
-    y = 180
-    box = "#F5F6F8" if bg == "#FFFFFF" else None
+    tmp = ImageDraw.Draw(Image.new("RGB", (W, 10)))
+    rows = []
     for it in items:
         head, _, tail = it.partition("|")
+        f = font("Bold", 54)
+        hl = wrap(tmp, head.strip(), f, maxw)
+        tl = wrap(tmp, tail.strip(), font("Medium", 40), maxw) if tail.strip() else []
+        rows.append((hl, tl, 50 + 70 * len(hl) + 56 * len(tl)))
+    H = 190 + sum(r[2] + 25 for r in rows) + 50
+    im = Image.new("RGB", (W, H), bg); d = ImageDraw.Draw(im)
+    tf = fit(d, spec["title"], "Black", 62, W - 2 * PAD)
+    center(d, 55, spec["title"], tf, acc if bg != "#FFFFFF" else fg, W)
+    y = 170
+    box = "#F5F6F8" if bg == "#FFFFFF" else None
+    for hl, tl, h in rows:
         if box:
-            d.rounded_rectangle([60, y, W - 60, y + 145], radius=26, fill=box)
-            d.rounded_rectangle([60, y, 78, y + 145], radius=9, fill=acc)
-        x = 110
-        if tail.strip():
-            d.text((x, y + 18), head.strip(), font=fit(d, head.strip(), "Black", 50, W - 200), fill=acc if box else fg)
-            d.text((x, y + 85), tail.strip(), font=fit(d, tail.strip(), "Medium", 36, W - 200), fill=sub if not box else "#333333")
-        else:
-            d.text((x, y + 40), head.strip(), font=fit(d, head.strip(), "Bold", 52, W - 200), fill=fg if not box else "#111111")
-        y += 170
+            d.rounded_rectangle([PAD - 40, y, W - PAD + 40, y + h], radius=26, fill=box)
+            d.rounded_rectangle([PAD - 40, y, PAD - 22, y + h], radius=9, fill=acc)
+        ty = y + 28
+        for l in hl:
+            d.text((PAD, ty), l, font=font("Bold", 54), fill=(acc if tl and box else (fg if not box else "#111111")))
+            ty += 70
+        for l in tl:
+            d.text((PAD, ty), l, font=font("Medium", 40), fill=(sub if not box else "#333333"))
+            ty += 56
+        y += h + 25
     im.save(out, quality=86, optimize=True)
 
 if __name__ == "__main__":
