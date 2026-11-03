@@ -129,6 +129,25 @@ def build_html(folder: Path) -> str:
     return re.sub(r'<img\b[^>]*>', responsive, html, flags=re.I)
 
 
+def clamp_window(ts: str) -> str:
+    """예약 시각을 한국시간 08:00~22:00 안으로 맞춥니다(밖이면 같은 날 안의 랜덤 시각으로 이동)."""
+    import random
+    from datetime import datetime, timezone, timedelta
+    kst = timezone(timedelta(hours=9))
+    try:
+        t = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(kst)
+    except ValueError:
+        return ts
+    minutes = t.hour * 60 + t.minute
+    if 8 * 60 <= minutes <= 22 * 60:
+        return ts
+    if minutes > 22 * 60:
+        new = t.replace(hour=random.randint(19, 21), minute=random.randint(0, 59), second=0, microsecond=0)
+    else:
+        new = t.replace(hour=random.randint(8, 9), minute=random.randint(0, 59), second=0, microsecond=0)
+    return new.isoformat()
+
+
 def update(token: str, blog_id: str, folder: Path, meta: dict) -> dict:
     """post.json에 "update_of": 글ID 가 있으면 새 글 대신 기존 글을 수정합니다 (라벨·제목·본문)."""
     body = {}
@@ -161,7 +180,7 @@ def publish(token: str, blog_id: str, folder: Path) -> dict:
     if meta.get("labels"):
         body["labels"] = meta["labels"]
     if meta.get("publish_at"):
-        body["published"] = meta["publish_at"]  # 미래 시각이면 예약 발행
+        body["published"] = clamp_window(meta["publish_at"])  # 미래 시각이면 예약 발행
 
     r = requests.post(
         f"{API}/blogs/{blog_id}/posts/",
