@@ -53,6 +53,13 @@ IT_BLOG_ID = _clean("IT_BLOG_ID")
 # 건강·생활 블로그 — 메인과 같은 구글 계정(같은 인증키). post.json 에 "blog": "health" 이면 이쪽으로 발행
 HEALTH_BLOG_ID = _clean("HEALTH_BLOG_ID") or "2761363091680251968"
 
+# 추가 블로그(메인과 같은 구글 계정): blogs.json 에 {"키": "https://주소.blogspot.com/"} 로 등록하면
+# post.json 의 "blog": "키" 글이 그 블로그로 발행됩니다.
+try:
+    EXTRA_BLOGS = {k: v for k, v in json.loads((Path(__file__).resolve().parent / "blogs.json").read_text(encoding="utf-8")).items() if not k.startswith("_") and v}
+except FileNotFoundError:
+    EXTRA_BLOGS = {}
+
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 SHA = os.environ.get("GITHUB_SHA", "main")
 
@@ -222,7 +229,10 @@ def main():
 
     def target(name):
         if name not in targets:
-            if name == "welfare":  # 정부지원·복지 블로그 — 메인과 같은 구글 계정, 주소로 ID 조회
+            if name in EXTRA_BLOGS:  # blogs.json 에 등록된 블로그 — 주소로 ID 조회
+                tok = get_access_token()
+                targets[name] = (tok, blog_id_by_url(tok, EXTRA_BLOGS[name]))
+            elif name == "welfare":  # 정부지원·복지 블로그 — 메인과 같은 구글 계정, 주소로 ID 조회
                 tok = get_access_token()
                 targets[name] = (tok, blog_id_by_url(tok, "https://govermentnwelfare.blogspot.com/"))
             elif name == "edu":  # 육아·교육 블로그 — 메인과 같은 구글 계정
@@ -250,7 +260,7 @@ def main():
         try:
             meta0 = json.loads((folder / "post.json").read_text(encoding="utf-8"))
             b = str(meta0.get("blog", "")).lower()
-            which = b if b in ("it", "health", "ittech", "edu", "welfare") else "main"
+            which = b if (b in ("it", "health", "ittech", "edu", "welfare") or b in EXTRA_BLOGS) else "main"
             token, blog_id = target(which)
             res = publish(token, blog_id, folder)
             meta_path = folder / "post.json"
