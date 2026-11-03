@@ -1,0 +1,33 @@
+name: 내 블로그 목록 확인
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/list_blogs.trigger"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: 블로그 목록 저장
+        env:
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+        run: python tools/list_blogs.py
+      - name: 커밋
+        run: |
+          git config user.name blogger-bot
+          git config user.email blogger-bot@users.noreply.github.com
+          git add posts/my_blogs.txt
+          git diff --cached --quiet || (git commit -m "내 블로그 목록 갱신" && (git push || (git pull --rebase && git push)))
