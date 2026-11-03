@@ -80,6 +80,13 @@ def get_access_token(refresh_token: str = None) -> str:
     return r.json()["access_token"]
 
 
+def blog_id_by_url(token: str, url: str) -> str:
+    r = requests.get(f"{API}/blogs/byurl", params={"url": url},
+                     headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    r.raise_for_status()
+    return r.json()["id"]
+
+
 def resolve_blog_id(token: str) -> str:
     if BLOG_ID:
         return BLOG_ID
@@ -196,7 +203,10 @@ def main():
 
     def target(name):
         if name not in targets:
-            if name == "health":
+            if name == "ittech":  # 메인과 같은 구글 계정, 주소로 블로그 ID 조회
+                tok = get_access_token()
+                targets[name] = (tok, blog_id_by_url(tok, "https://ittechdurion0506.blogspot.com/"))
+            elif name == "health":
                 targets[name] = (get_access_token(), HEALTH_BLOG_ID)
             elif name == "it":
                 if not (IT_REFRESH_TOKEN and IT_BLOG_ID):
@@ -216,7 +226,7 @@ def main():
         try:
             meta0 = json.loads((folder / "post.json").read_text(encoding="utf-8"))
             b = str(meta0.get("blog", "")).lower()
-            which = b if b in ("it", "health") else "main"
+            which = b if b in ("it", "health", "ittech") else "main"
             token, blog_id = target(which)
             res = publish(token, blog_id, folder)
             meta_path = folder / "post.json"
