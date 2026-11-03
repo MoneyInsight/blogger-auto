@@ -203,7 +203,10 @@ def main():
 
     def target(name):
         if name not in targets:
-            if name == "edu":  # 육아·교육 블로그 — 메인과 같은 구글 계정
+            if name == "welfare":  # 정부지원·복지 블로그 — 메인과 같은 구글 계정, 주소로 ID 조회
+                tok = get_access_token()
+                targets[name] = (tok, blog_id_by_url(tok, "https://govermentnwelfare.blogspot.com/"))
+            elif name == "edu":  # 육아·교육 블로그 — 메인과 같은 구글 계정
                 targets[name] = (get_access_token(), "3607854023992740453")
             elif name == "ittech":  # 메인과 같은 구글 계정, 주소로 블로그 ID 조회
                 tok = get_access_token()
@@ -228,7 +231,7 @@ def main():
         try:
             meta0 = json.loads((folder / "post.json").read_text(encoding="utf-8"))
             b = str(meta0.get("blog", "")).lower()
-            which = b if b in ("it", "health", "ittech", "edu") else "main"
+            which = b if b in ("it", "health", "ittech", "edu", "welfare") else "main"
             token, blog_id = target(which)
             res = publish(token, blog_id, folder)
             meta_path = folder / "post.json"
