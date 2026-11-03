@@ -50,6 +50,9 @@ BLOG_URL = os.environ.get("BLOGGER_BLOG_URL", "").strip()
 IT_REFRESH_TOKEN = _clean("IT_REFRESH_TOKEN")
 IT_BLOG_ID = _clean("IT_BLOG_ID")
 
+# 건강·생활 블로그 — 메인과 같은 구글 계정(같은 인증키). post.json 에 "blog": "health" 이면 이쪽으로 발행
+HEALTH_BLOG_ID = _clean("HEALTH_BLOG_ID") or "2761363091680251968"
+
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 SHA = os.environ.get("GITHUB_SHA", "main")
 
@@ -193,7 +196,9 @@ def main():
 
     def target(name):
         if name not in targets:
-            if name == "it":
+            if name == "health":
+                targets[name] = (get_access_token(), HEALTH_BLOG_ID)
+            elif name == "it":
                 if not (IT_REFRESH_TOKEN and IT_BLOG_ID):
                     raise RuntimeError("IT 블로그 Secrets(IT_REFRESH_TOKEN, IT_BLOG_ID)가 비어 있음")
                 try:
@@ -210,7 +215,8 @@ def main():
     for folder in folders:
         try:
             meta0 = json.loads((folder / "post.json").read_text(encoding="utf-8"))
-            which = "it" if str(meta0.get("blog", "")).lower() == "it" else "main"
+            b = str(meta0.get("blog", "")).lower()
+            which = b if b in ("it", "health") else "main"
             token, blog_id = target(which)
             res = publish(token, blog_id, folder)
             meta_path = folder / "post.json"
