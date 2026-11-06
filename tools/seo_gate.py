@@ -61,7 +61,7 @@ def sentences(html):
 
 def intro_sentences(html):
     """첫 h2 앞 도입부(이미지 제외)의 문장들 — <p> 형식과 <br> 형식 모두 처리."""
-    head = re.split(r"<h2\b", html, 1, flags=re.I)[0]
+    head = re.split(r"<h2\b", html, maxsplit=1, flags=re.I)[0]
     head = re.sub(r"<h1[^>]*>.*?</h1>", " ", head, flags=re.S | re.I)
     txt = plain(re.sub(r"<img\b[^>]*>", " ", head))
     if not txt:
@@ -253,11 +253,19 @@ def main():
         rows = []
         dirs = [d for d in sorted(base.iterdir()) if (d / "post.json").exists()]
         metas = {d: json.loads((d / "post.json").read_text(encoding="utf-8")) for d in dirs}
-        replaced = {m.get("update_of") for m in metas.values() if m.get("update_of")}
+        latest = {}  # 글 ID별 가장 최근 버전 폴더만 점검(폴더 이름이 시간순)
         for d in dirs:
             m = metas[d]
-            if not m.get("update_of") and m.get("blogger_id") in replaced:
-                continue  # 이미 보정된 원본은 건너뜀
+            gid = m.get("update_of") or m.get("blogger_id") or d.name
+            rank = (1 if m.get("update_of") else 0, d.name)  # 수정본 우선, 그다음 최신
+            if gid not in latest or rank > latest[gid][0]:
+                latest[gid] = (rank, d)
+        latest = {k: v[1] for k, v in latest.items()}
+        keep = set(latest.values())
+        for d in dirs:
+            m = metas[d]
+            if d not in keep or m.get("draft") or m.get("status") == "DRAFT":
+                continue
             if (d / "post.html").exists():
                 t, c, _ = score(d)
                 rows.append((t, d, c))
