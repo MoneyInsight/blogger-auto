@@ -143,12 +143,26 @@ def report(folder, total, checks):
 def main():
     args = sys.argv[1:]
     if args and args[0] == "--all":
-        base = Path(args[1] if len(args) > 1 else ROOT / "posts" / "published")
+        base = Path(args[1] if len(args) > 1 and not args[1].startswith("--") else ROOT / "posts" / "published")
         rows = []
-        for d in sorted(base.iterdir()):
+        dirs = [d for d in sorted(base.iterdir()) if (d / "post.json").exists()]
+        metas = {d: json.loads((d / "post.json").read_text(encoding="utf-8")) for d in dirs}
+        replaced = {m.get("update_of") for m in metas.values() if m.get("update_of")}
+        for d in dirs:
+            m = metas[d]
+            if not m.get("update_of") and m.get("blogger_id") in replaced:
+                continue  # 이미 보정된 원본은 건너뜀
             if (d / "post.html").exists():
                 t, c, _ = score(d)
                 rows.append((t, d, c))
+        worst = int(args[args.index("--worst") + 1]) if "--worst" in args else 0
+        if worst:  # 보정 대상: 애드센스용 새 블로그 글 먼저, 그다음 점수 낮은 순
+            todo = [r for r in rows if r[0] < PASS]
+            todo.sort(key=lambda r: (0 if metas[r[1]].get("series") else 1, r[0]))
+            for t, d, c in todo[:worst]:
+                print(report(d, t, c))
+            print(f"\n남은 90점 미만 글: {len(todo)}개")
+            return
         for t, d, c in sorted(rows, key=lambda r: r[0]):
             print(report(d, t, c))
         ok = sum(1 for t, *_ in rows if t >= PASS)
