@@ -23,12 +23,35 @@ def plain(html):
 
 
 def guess_kw(meta, html):
+    """메인 키워드: spec의 kw → 제목 속 2~3단어 중 본문에 가장 많이 나오는 말(앞쪽 우선)."""
     if meta.get("kw"):
         return meta["kw"]
+    body = plain(html).replace(" ", "")
+    m0 = re.search(r'<img[^>]*alt="([^"]+)"', html)
+    alt0 = re.sub(r"\s*(썸네일|이미지|대표\s*이미지|카드\s*\d*)$", "", m0.group(1).strip()) if m0 else ""
+    if alt0 and len(alt0.split()) <= 4 and len(alt0) <= 16 and body.count(alt0.replace(" ", "")) >= 1:
+        return alt0
+    title = re.sub(r"\d{1,2}월\s*", "", meta.get("title", ""))
+    words = [w.strip(",…·|?!.\"'()[]") for w in title.split()]
+    words = [w for w in words if w]
+    best, best_sc = "", 0
+    for n in (3, 2):
+        for i in range(0, min(len(words) - n + 1, 6)):
+            ws = words[i:i + n]
+            if any(re.match(r"^\d[\d,.]*(가지|만|억|천|원|%|개|번|분|시간|일|월|배|명|위|년)?$", w) or w in ("원", "후", "전", "때", "월", "만에", "절반", "번갈아", "입", "보면", "내가", "나는", "이유", "방법", "설정", "정리") for w in (ws[0], ws[-1])):
+                continue
+            cand = " ".join(ws)
+            c = body.count(cand.replace(" ", ""))
+            sc = c * (1.3 if n == 3 else 1.0) - i * 0.3
+            if c >= 2 and sc > best_sc:
+                best, best_sc = cand, sc
+    if best:
+        return best
     m = re.search(r'<img[^>]*alt="([^"]+)"', html)
-    if m:
-        return m.group(1)
-    return " ".join(meta.get("title", "").split()[:2])
+    alt = re.sub(r"\s*(썸네일|이미지|카드\s*\d*)$", "", m.group(1).strip()) if m else ""
+    if alt and len(alt.split()) <= 4:
+        return alt
+    return " ".join(words[:2])
 
 
 def sentences(html):
@@ -110,24 +133,95 @@ def score(folder: Path):
     add("금지어·외부 링크 없음", 4, not any(b in text for b in BANNED) and "<a " not in html,
         f"금지어/링크: {[b for b in BANNED if b in text] + (['<a>'] if '<a ' in html else [])}")
     endings = [s for s in sents if not plain(s).rstrip().endswith(("다.", "?", "다!"))]
-    add("문장 '~다.' 종결 95% 이상", 3, not sents or len(endings) / len(sents) <= 0.05, f"어긋난 문장 {len(endings)}개")
+    tt = [t[:2] for t in re.findall(r"[가-힣A-Za-z]{2,}", title)]
+    hit = sum(1 for t in tt if t in text.replace(" ", ""))
+    add("제목 핵심 단어가 본문에 등장(제목-본문 일치)", 3, not tt or hit / len(tt) >= 0.5, f"제목 단어 {hit}/{len(tt)}개만 본문에 있음")
 
     total = sum(p for _, p, ok, _ in checks if ok)
     return total, checks, kw
 
 
-def autofix(folder: Path, kw: str):
-    f = folder / "post.html"
-    html = f.read_text(encoding="utf-8")
-    html = re.sub(r"<h1[^>]*>.*?</h1>\s*(<p><br\s*/?></p>)?", "", html, flags=re.S | re.I)
+def _josa(word, a, b):
+    """받침 있으면 a, 없으면 b (을/를, 은/는)."""
+    ch = word.strip()[-1:] if word.strip() else "가"
+    if "가" <= ch <= "힣":
+        return a if (ord(ch) - 0xAC00) % 28 else b
+    return a if ch.isdigit() and ch in "013678" else b
 
+
+def _style(html):
+    ps = [plain(x) for x in re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.S)]
+    yo = sum(1 for x in ps if x.endswith(("요.", "요!", "요?")))
+    sb = sum(1 for x in ps if x.endswith("니다."))
+    da = sum(1 for x in ps if x.endswith("다.")) - sb
+    return "yo" if yo > max(sb, da) else "sb" if sb > da else "da"
+
+
+LEADS = {
+    "da": ["{h}{j} 직접 해 본 경험을 바탕으로 핵심부터 차례대로 짚어 본다.",
+           "{h}{j} 실제로 해 본 기준과 순서 위주로 풀어 본다.",
+           "{h}{j} 바로 따라 할 수 있게 핵심만 추려 본다."],
+    "sb": ["{h}{j} 직접 확인한 내용을 바탕으로 핵심부터 차례대로 짚어 봅니다.",
+           "{h}{j} 실제 기준과 순서 위주로 풀어 봅니다.",
+           "{h}{j} 바로 따라 할 수 있게 핵심만 추려 봅니다."],
+    "yo": ["{h}{j} 직접 확인한 내용을 바탕으로 핵심부터 차례대로 짚어 볼게요.",
+           "{h}{j} 실제 기준과 순서 위주로 풀어 볼게요.",
+           "{h}{j} 바로 따라 할 수 있게 핵심만 추려 볼게요."],
+}
+SWAP = {"무조건": "반드시", "100%": "완전히", "긴급": "급한", "충격": "뜻밖의", "자주 묻는 질문": "궁금한 점", "FAQ": "궁금한 점"}
+
+
+def autofix(folder: Path, kw: str):
+    """기계적으로 고칠 수 있는 항목을 모두 고친다(내용·숫자는 새로 만들지 않음)."""
+    f = folder / "post.html"
+    meta = json.loads((folder / "post.json").read_text(encoding="utf-8"))
+    html = f.read_text(encoding="utf-8")
+    title = meta.get("title", "")
+    toks = [t[:2] for t in re.findall(r"[가-힣A-Za-z0-9]{2,}", kw)] or [kw[:2]]
+    has_kw = lambda t: all(x in plain(t).replace(" ", "") for x in toks)
+
+    # 1) 본문 h1 삭제, 링크 문단 삭제·남은 링크 풀기, 쿠팡 문장 삭제, 금지어 순화
+    html = re.sub(r"<h1[^>]*>.*?</h1>\s*(<p><br\s*/?></p>)?", "", html, flags=re.S | re.I)
+    html = re.sub(r"<p[^>]*>[^<]*(함께 읽으면|같이 읽으면|관련 글)[^<]*<a .*?</p>\s*(<p><br\s*/?></p>)?", "", html, flags=re.S)
+    html = re.sub(r"<a\b[^>]*>(.*?)</a>", r"\1", html, flags=re.S | re.I)
+    html = re.sub(r"<p[^>]*>[^<]*쿠팡[^<]*</p>", "", html)
+    for a, b in SWAP.items():
+        html = re.sub(r"(>[^<]*?)" + re.escape(a), lambda m: m.group(1) + b, html)
+
+    # 2) 첫 2문장에 메인 키워드 + 핵심 — 제목 앞부분(쉼표 앞)으로 리드 문장 추가
+    sents = sentences(html)
+    if sents and not has_kw(" ".join(sents[:2])):
+        head = re.split(r"[,…|·]|\s-\s", title)[0].strip().rstrip(".!?")
+        if not has_kw(head):
+            head = kw
+        st = _style(html)
+        lead = LEADS[st][sum(map(ord, title)) % 3].format(h=head, j=_josa(head, "을", "를"))
+        first = sents[0]
+        html = html.replace(f">{first}<", f">{lead} {first}<", 1) if f">{first}<" in html else html
+
+    # 3) 키워드 든 문단 3개 이상 + h2에 키워드 — 뒤쪽 h2부터 키워드 붙이기
+    def kw_paras(h):
+        return sum(1 for x in re.findall(r"<(?:p|li|h2|h3|td)[^>]*>(.*?)</(?:p|li|h2|h3|td)>", h, flags=re.S) if has_kw(x))
+    h2s = re.findall(r"(<h2[^>]*>)(.*?)(</h2>)", html, flags=re.S)
+    order = [h for h in h2s[1:] if not has_kw(h[1])] + ([h2s[0]] if h2s and not has_kw(h2s[0][1]) else [])
+    need_h2 = not any(has_kw(h[1]) for h in h2s)
+    for o, t, c in order:
+        if not need_h2 and kw_paras(html) >= 3:
+            break
+        txt = plain(t)
+        new = f"{kw}, {txt}" if not txt.startswith(kw) else txt
+        html = html.replace(o + t + c, o + new + c, 1)
+        need_h2 = False
+        if kw_paras(html) >= 3 and len(order) and o + new + c in html and need_h2 is False and kw_paras(html) >= 3:
+            break
+
+    # 4) 이미지 alt
     def alt(m):
         tag = m.group(0)
         if re.search(r'alt="[^"]*' + re.escape(kw[:2]), tag):
             return tag
         tag = re.sub(r'\salt="[^"]*"', "", tag)
         return tag.replace("<img", f'<img alt="{kw}"', 1)
-
     html = re.sub(r"<img\b[^>]*>", alt, html, flags=re.I)
     f.write_text(html, encoding="utf-8")
 
