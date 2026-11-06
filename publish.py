@@ -175,8 +175,25 @@ def update(token: str, blog_id: str, folder: Path, meta: dict) -> dict:
     return r.json()
 
 
+def seo_check(folder: Path):
+    """색인·노출 점검 90점 미만이면 발행하지 않음(h1·alt는 자동 수정 후 재점검)."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import seo_gate
+    total, checks, kw = seo_gate.score(folder)
+    if total < seo_gate.PASS:
+        seo_gate.autofix(folder, kw)
+        total, checks, kw = seo_gate.score(folder)
+    rep = seo_gate.report(folder, total, checks)
+    print(rep)
+    if total < seo_gate.PASS:
+        raise RuntimeError("[SEO 점검 미달 — 발행 보류] 아래 항목을 고친 뒤 이 폴더를 posts/queue/ 로 다시 옮겨 push 한다.\n"
+                           "검사: python tools/seo_gate.py <폴더> --fix\n" + rep)
+
+
 def publish(token: str, blog_id: str, folder: Path) -> dict:
     meta = json.loads((folder / "post.json").read_text(encoding="utf-8"))
+    if (folder / "post.html").exists() and not meta.get("skip_seo_gate"):
+        seo_check(folder)
     if meta.get("update_of"):
         return update(token, blog_id, folder, meta)
     body = {
