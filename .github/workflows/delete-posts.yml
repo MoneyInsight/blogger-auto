@@ -1,0 +1,36 @@
+name: 블로거 글 삭제
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/delete_posts.json"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: 글 삭제
+        env:
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+        run: python tools/delete_posts.py
+      - name: 결과 저장
+        run: |
+          git config user.name blogger-bot
+          git config user.email blogger-bot@users.noreply.github.com
+          git add posts/delete_report.txt tools/delete_posts.json
+          git diff --cached --quiet && exit 0
+          git commit -m "글 삭제 결과 기록"
+          for i in 1 2 3 4 5; do git pull --rebase origin main && git push && exit 0; sleep $((i*5)); done
+          exit 1
