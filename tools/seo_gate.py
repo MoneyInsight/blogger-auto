@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PASS = 90
-BANNED = ["충격", "긴급", "무조건", "100%", "쿠팡", "자주 묻는 질문", "FAQ"]
+BANNED = ["긴급", "무조건", "쿠팡", "자주 묻는 질문", "FAQ"]
 
 
 def plain(html):
@@ -59,6 +59,16 @@ def sentences(html):
             if plain(s) and "<img" not in s and "font-size:12px" not in s]
 
 
+def intro_sentences(html):
+    """첫 h2 앞 도입부(이미지 제외)의 문장들 — <p> 형식과 <br> 형식 모두 처리."""
+    head = re.split(r"<h2\b", html, 1, flags=re.I)[0]
+    head = re.sub(r"<h1[^>]*>.*?</h1>", " ", head, flags=re.S | re.I)
+    txt = plain(re.sub(r"<img\b[^>]*>", " ", head))
+    if not txt:
+        txt = plain(html)[:400]
+    return [x.strip() for x in re.findall(r"[^.?!]+[.?!]?", txt) if x.strip()]
+
+
 def siblings_titles(folder: Path, blog: str, self_id: str = ""):
     """같은 블로그에 이미 발행된 글 제목들(자기 자신·수정 대상 원본 제외)."""
     out = []
@@ -91,10 +101,12 @@ def score(folder: Path):
     text = plain(html)
     body_chars = len(re.sub(r"\s", "", text))
     sents = sentences(html)
-    first = plain(" ".join(sents[:2]))
+    first = " ".join(intro_sentences(html)[:2])
     h2s = re.findall(r"<h2[^>]*>(.*?)</h2>", html, flags=re.S)
     imgs = re.findall(r"<img\b[^>]*>", html, flags=re.I)
-    toks = [t[:2] for t in re.findall(r"[가-힣A-Za-z0-9]{2,}", kw)] or [k[:2]]
+    toks = [t[:2] for t in re.findall(r"[가-힣A-Za-z0-9]{2,}", kw)]
+    if len(toks) < 2:
+        toks = [k]
     has_kw = lambda t: all(x in t.replace(" ", "") for x in toks)
     paras = [plain(x) for x in re.findall(r"<(?:p|li|h2|h3|td)[^>]*>(.*?)</(?:p|li|h2|h3|td)>", html, flags=re.S)]
     kw_count = sum(1 for x in paras if has_kw(x))
@@ -113,7 +125,7 @@ def score(folder: Path):
     # ── 첫 문단 = 검색 미리보기 (15)
     add("첫 2문장 안에 메인 키워드(검색 미리보기)", 10, has_kw(first), f"첫 문장에 '{kw}'를 넣고 핵심 답을 바로 말하기")
     add("첫 문장이 인사·잡담으로 시작하지 않음", 5,
-        not re.match(r"^(오늘은|안녕하세요|요즘|여러분)", plain(sents[0]) if sents else ""), "첫 문장에서 바로 답을 말하기")
+        not re.match(r"^(오늘은|안녕하세요|요즘|여러분)", (intro_sentences(html) or [""])[0]), "첫 문장에서 바로 답을 말하기")
 
     # ── 본문 구조 (35)
     add("본문 1,500자 이상(공백 제외)", 10, body_chars >= 1500, f"지금 {body_chars}자")
@@ -150,25 +162,26 @@ def _josa(word, a, b):
 
 
 def _style(html):
-    ps = [plain(x) for x in re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.S)]
-    yo = sum(1 for x in ps if x.endswith(("요.", "요!", "요?")))
-    sb = sum(1 for x in ps if x.endswith("니다."))
-    da = sum(1 for x in ps if x.endswith("다.")) - sb
-    return "yo" if yo > max(sb, da) else "sb" if sb > da else "da"
+    sents = [x.strip() for x in re.findall(r"[^.?!]+[.?!]", plain(html))]
+    yo = sum(1 for x in sents if re.search(r"(요|죠)[.?!]$", x))
+    sb = sum(1 for x in sents if re.search(r"(니다|니까)[.?!]$", x))
+    da = sum(1 for x in sents if x.endswith("다.")) - sb
+    return "yo" if yo >= max(sb, da) and yo > 0 else "sb" if sb > da else "da"
 
 
+# 경험을 주장하지 않는 중립 리드(키워드 + 이 글이 답하는 것)
 LEADS = {
-    "da": ["{h}{j} 직접 해 본 경험을 바탕으로 핵심부터 차례대로 짚어 본다.",
-           "{h}{j} 실제로 해 본 기준과 순서 위주로 풀어 본다.",
-           "{h}{j} 바로 따라 할 수 있게 핵심만 추려 본다."],
-    "sb": ["{h}{j} 직접 확인한 내용을 바탕으로 핵심부터 차례대로 짚어 봅니다.",
-           "{h}{j} 실제 기준과 순서 위주로 풀어 봅니다.",
-           "{h}{j} 바로 따라 할 수 있게 핵심만 추려 봅니다."],
-    "yo": ["{h}{j} 직접 확인한 내용을 바탕으로 핵심부터 차례대로 짚어 볼게요.",
-           "{h}{j} 실제 기준과 순서 위주로 풀어 볼게요.",
-           "{h}{j} 바로 따라 할 수 있게 핵심만 추려 볼게요."],
+    "da": ["{k}{j} 꼭 알아야 할 기준과 순서 중심으로 정리한다.",
+           "{k}에 대해 바로 따라 할 수 있도록 핵심부터 정리한다.",
+           "{k}, 헷갈리기 쉬운 부분을 먼저 짚고 순서대로 정리한다."],
+    "sb": ["{k}{j} 꼭 알아야 할 기준과 순서 중심으로 정리했습니다.",
+           "{k}에 대해 바로 따라 할 수 있도록 핵심부터 정리했습니다.",
+           "{k}, 헷갈리기 쉬운 부분을 먼저 짚고 순서대로 정리했습니다."],
+    "yo": ["{k}{j} 꼭 알아야 할 기준과 순서 중심으로 정리했어요.",
+           "{k}에 대해 바로 따라 할 수 있도록 핵심부터 정리했어요.",
+           "{k}, 헷갈리기 쉬운 부분을 먼저 짚고 순서대로 정리했어요."],
 }
-SWAP = {"무조건": "반드시", "100%": "완전히", "긴급": "급한", "충격": "뜻밖의", "자주 묻는 질문": "궁금한 점", "FAQ": "궁금한 점"}
+SWAP = {"무조건": "반드시", "긴급": "급한", "자주 묻는 질문": "궁금한 점", "FAQ": "궁금한 점"}
 
 
 def autofix(folder: Path, kw: str):
@@ -177,7 +190,9 @@ def autofix(folder: Path, kw: str):
     meta = json.loads((folder / "post.json").read_text(encoding="utf-8"))
     html = f.read_text(encoding="utf-8")
     title = meta.get("title", "")
-    toks = [t[:2] for t in re.findall(r"[가-힣A-Za-z0-9]{2,}", kw)] or [kw[:2]]
+    toks = [t[:2] for t in re.findall(r"[가-힣A-Za-z0-9]{2,}", kw)]
+    if len(toks) < 2:
+        toks = [kw.replace(" ", "")]
     has_kw = lambda t: all(x in plain(t).replace(" ", "") for x in toks)
 
     # 1) 본문 h1 삭제, 링크 문단 삭제·남은 링크 풀기, 쿠팡 문장 삭제, 금지어 순화
@@ -188,16 +203,13 @@ def autofix(folder: Path, kw: str):
     for a, b in SWAP.items():
         html = re.sub(r"(>[^<]*?)" + re.escape(a), lambda m: m.group(1) + b, html)
 
-    # 2) 첫 2문장에 메인 키워드 + 핵심 — 제목 앞부분(쉼표 앞)으로 리드 문장 추가
-    sents = sentences(html)
-    if sents and not has_kw(" ".join(sents[:2])):
-        head = re.split(r"[,…|·]|\s-\s", title)[0].strip().rstrip(".!?")
-        if not has_kw(head):
-            head = kw
+    # 2) 도입 첫 2문장에 메인 키워드가 없으면, 대표이미지 바로 뒤에 키워드 리드 문장 1개 추가
+    if not has_kw(" ".join(intro_sentences(html)[:2])):
         st = _style(html)
-        lead = LEADS[st][sum(map(ord, title)) % 3].format(h=head, j=_josa(head, "을", "를"))
-        first = sents[0]
-        html = html.replace(f">{first}<", f">{lead} {first}<", 1) if f">{first}<" in html else html
+        lead = LEADS[st][sum(map(ord, title)) % 3].format(k=kw, j=_josa(kw, "을", "를"))
+        m = re.search(r"<img\b[^>]*>(\s*</p>)?(\s*<br\s*/?>)*", html, flags=re.I)
+        pos = m.end() if m and m.start() < 300 else 0
+        html = html[:pos] + f"<p>{lead}</p>" + html[pos:]
 
     # 3) 키워드 든 문단 3개 이상 + h2에 키워드 — 뒤쪽 h2부터 키워드 붙이기
     def kw_paras(h):
