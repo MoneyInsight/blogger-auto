@@ -1,0 +1,44 @@
+name: 쿠팡 파트너스 링크 갱신
+
+on:
+  schedule:
+    # 한국시간 매일 06:20 (블로그 글 작업 07:05 전에)
+    - cron: "20 21 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: coupang-links
+  cancel-in-progress: false
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests
+
+      - name: 쿠팡 API로 추천 상품 링크 받기
+        env:
+          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+          COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
+        run: python tools/coupang_links.py
+
+      - name: 결과 저장
+        run: |
+          git config user.name blogger-bot
+          git config user.email blogger-bot@users.noreply.github.com
+          git add coupang/links.json
+          git diff --cached --quiet && exit 0
+          git commit -m "쿠팡 파트너스 링크 갱신"
+          for i in 1 2 3 4 5; do git pull --rebase origin main && git push && exit 0; sleep $((i*5)); done
+          exit 1
