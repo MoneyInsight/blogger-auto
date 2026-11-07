@@ -62,50 +62,24 @@ def coupang_cards() -> None:
 
 
 def brandconnect_cards() -> None:
+    """coupang/brandconnect.json: [{"url", "image"(사용자가 준 이미지 주소), "title"(선택)}]"""
     src = os.path.join(ROOT, "brandconnect.json")
     if not os.path.exists(src):
         return
     links = json.load(open(src, encoding="utf-8"))
-    out_p = os.path.join(ROOT, "brandconnect_cards.json")
-    old = {c["url"]: c for c in json.load(open(out_p, encoding="utf-8"))} if os.path.exists(out_p) else {}
+    for f in os.listdir(IMG):
+        if f.startswith("b"):
+            os.remove(os.path.join(IMG, f))
     cards = []
-    for i, url in enumerate(links):
+    for i, it in enumerate(links):
+        it = it if isinstance(it, dict) else {"url": it}
         rel = f"img/b{i}.jpg"
-        prev = old.get(url)
-        if prev and prev.get("title") and prev.get("thumb") and os.path.exists(os.path.join(ROOT, prev["thumb"])) \
-                and prev["thumb"] == rel:
-            cards.append(prev)
-            continue
-        card = {"url": url, "title": None, "site": None, "thumb": None}
-        try:
-            r = S.get(url, timeout=20, allow_redirects=True)
-            page = r.text
-            # 브랜드 커넥트 중간 페이지는 자바스크립트로 상품 페이지에 넘어가므로 상품 주소를 찾아 한 번 더 연다
-            for _ in range(2):
-                if og(page, "title"):
-                    break
-                m = re.search(r'https?:(?:\\?/){2}(?:smartstore|brand|shopping)\.naver\.com(?:\\?/)[^"\'<>\s]+', page)
-                no = re.search(r"channelProductNo=(\d+)", r.url)
-                if not m and no:
-                    nxt = f"https://smartstore.naver.com/main/products/{no.group(1)}"
-                    r = S.get(nxt, timeout=20, allow_redirects=True)
-                    page = r.text
-                    continue
-                if not m:
-                    break
-                nxt = m.group(0).replace("\\/", "/")
-                r = S.get(nxt, timeout=20, allow_redirects=True)
-                page = r.text
-            card["title"] = og(page, "title")
-            card["site"] = og(page, "site_name") or re.sub(r"^https?://([^/]+).*", r"\1", r.url)
-            img = og(page, "image")
-            if img and save_thumb(img, os.path.join(ROOT, rel)):
-                card["thumb"] = rel
-        except Exception as e:  # noqa: BLE001
-            print("  브랜드 커넥트 실패:", url, e)
-        print(f"  B{i}: {card['title']} / 썸네일 {'O' if card['thumb'] else 'X'}")
+        card = {"url": it["url"], "title": it.get("title"), "site": "smartstore.naver.com · 네이버 쇼핑",
+                "thumb": rel if it.get("image") and save_thumb(it["image"], os.path.join(ROOT, rel)) else None}
+        print(f"  B{i}: {card['url']} / 썸네일 {'O' if card['thumb'] else 'X'}")
         cards.append(card)
-    json.dump(cards, open(out_p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    json.dump(cards, open(os.path.join(ROOT, "brandconnect_cards.json"), "w", encoding="utf-8"),
+              ensure_ascii=False, indent=1)
     print(f"✅ 브랜드 커넥트 카드 {sum(1 for c in cards if c['thumb'])}/{len(cards)}개")
 
 
