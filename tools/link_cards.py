@@ -80,6 +80,17 @@ def brandconnect_cards() -> None:
         try:
             r = S.get(url, timeout=20, allow_redirects=True)
             page = r.text
+            # 브랜드 커넥트 중간 페이지는 자바스크립트로 상품 페이지에 넘어가므로 상품 주소를 찾아 한 번 더 연다
+            for _ in range(2):
+                if og(page, "title"):
+                    break
+                m = re.search(r'https?:(?:\\?/){2}(?:smartstore|brand|shopping)\.naver\.com(?:\\?/)[^"\'<>\s]+', page)
+                if not m:
+                    print("  [디버그]", r.status_code, r.url[:120], re.sub(r"\s+", " ", page[:400]))
+                    break
+                nxt = m.group(0).replace("\\/", "/")
+                r = S.get(nxt, timeout=20, allow_redirects=True)
+                page = r.text
             card["title"] = og(page, "title")
             card["site"] = og(page, "site_name") or re.sub(r"^https?://([^/]+).*", r"\1", r.url)
             img = og(page, "image")
