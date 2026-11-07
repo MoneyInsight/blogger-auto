@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: pip install requests
+      - run: pip install requests pillow
 
       - name: 쿠팡 API로 추천 상품 링크 받기
         env:
@@ -33,11 +33,14 @@ jobs:
           COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
         run: python tools/coupang_links.py
 
+      - name: 상품 미리보기 카드 썸네일 만들기
+        run: python tools/link_cards.py
+
       - name: 결과 저장
         run: |
           git config user.name blogger-bot
           git config user.email blogger-bot@users.noreply.github.com
-          git add coupang/links.json
+          git add -A coupang
           git diff --cached --quiet && exit 0
           git commit -m "쿠팡 파트너스 링크 갱신"
           for i in 1 2 3 4 5; do git pull --rebase origin main && git push && exit 0; sleep $((i*5)); done
