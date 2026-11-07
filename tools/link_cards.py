@@ -90,12 +90,8 @@ def brandconnect_cards() -> None:
                     nxt = f"https://smartstore.naver.com/main/products/{no.group(1)}"
                     r = S.get(nxt, timeout=20, allow_redirects=True)
                     page = r.text
-                    if not og(page, "title"):
-                        t = re.search(r"<title>([^<]+)</title>", page)
-                        print("  [디버그2]", r.status_code, r.url[:120], t.group(1)[:80] if t else "")
                     continue
                 if not m:
-                    print("  [디버그]", r.status_code, r.url[:120], re.sub(r"\s+", " ", page[:400]))
                     break
                 nxt = m.group(0).replace("\\/", "/")
                 r = S.get(nxt, timeout=20, allow_redirects=True)
