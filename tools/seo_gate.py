@@ -149,8 +149,58 @@ def score(folder: Path):
     hit = sum(1 for t in tt if t in text.replace(" ", ""))
     add("제목 핵심 단어가 본문에 등장(제목-본문 일치)", 3, not tt or hit / len(tt) >= 0.5, f"제목 단어 {hit}/{len(tt)}개만 본문에 있음")
 
-    total = sum(p for _, p, ok, _ in checks if ok)
+    # ── 애드센스 '찍어낸 글' 신호 (어기면 항목당 -20 → 발행 보류)
+    pen = adsense_penalties(title, html, siblings_recent(folder, blog))
+    for name, fix in pen:
+        checks.append((name, -20, False, fix))
+    total = sum(p for _, p, ok, _ in checks if ok and p > 0) - 20 * len(pen)
     return total, checks, kw
+
+
+TITLE_PERSONA = re.compile(r"(셀러|사장|아빠|엄마|가장|두 아이|부부가|내가|제가)")
+TITLE_TEMPLATE = re.compile(r"(하던|했던|던) ?[가-힣 ]{0,12}(내가|아빠가|셀러가|사장이|가장이|부모가|부부가|아이가)|바꾼 (순서|이유|습관|방법|것|설정|\d)")
+BOILER = [re.compile(r"이 글은 [^.]{2,160}?(위해|위한) (쓴 )?글(이다|입니다)"),
+          re.compile(r"(바로 따라 할 수 있도록 핵심부터 정리|헷갈리기 쉬운 부분을 먼저 짚고 순서대로 정리|꼭 알아야 할 기준과 순서 중심으로 정리)"),
+          re.compile(r"(나는|저는) (생활용품 )?온라인 쇼핑몰을 운영하(는|며|면서)[^.]{0,40}?(아빠|가장|사업자)(다|이다|입니다)\.")]
+
+
+def siblings_recent(folder: Path, blog: str, n: int = 6):
+    """같은 블로그 최근 글(폴더 이름=시간순) n개의 (제목, 첫 문장)."""
+    rows = []
+    for p in sorted((ROOT / "posts" / "published").glob("*/post.json")):
+        if p.parent.resolve() == folder.resolve() or "seofix" in p.parent.name:
+            continue
+        try:
+            m = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if str(m.get("blog", "main")) != blog or m.get("update_of"):
+            continue
+        h = (p.parent / "post.html")
+        first = (intro_sentences(h.read_text(encoding="utf-8")) or [""])[0] if h.exists() else ""
+        rows.append((m.get("title", ""), first))
+    return rows[-n:]
+
+
+def adsense_penalties(title, html, recent):
+    """애드센스 '저품질·대량 생산' 신호: 틀에 박힌 제목·도입·자기소개 문장, 최근 글과 같은 제목 꼬리/첫 문장 틀."""
+    out = []
+    if TITLE_PERSONA.search(title) or TITLE_TEMPLATE.search(title):
+        out.append(("제목에 화자·'~하던 내가 바꾼' 틀 없음", "제목은 독자가 검색하는 말 + 이 글이 주는 답으로만 쓴다(셀러·사장·아빠·내가·바꾼 순서/이유 금지)"))
+    txt = plain(html)
+    hits = [b.search(txt).group(0)[:40] for b in BOILER if b.search(txt)]
+    if hits:
+        out.append(("틀에 박힌 도입·자기소개 문장 없음", f"이 문장을 글 내용에 맞는 내 문장으로 바꾸거나 지운다: {hits}"))
+    tail = lambda t: re.sub(r"[^가-힣A-Za-z0-9]", "", (re.findall(r"[가-힣A-Za-z0-9]+", t) or [""])[-1])
+    same = [t for t, _ in recent[-4:] if t and tail(t) == tail(title)]
+    if len(same) >= 2:
+        out.append(("최근 글과 같은 제목 끝맺음 반복 없음", f"최근 제목 {len(same)}개가 '…{tail(title)}'로 끝난다 — 질문형·비교형·기준형 등 다른 형태로"))
+    lead = lambda t: re.sub(r"\s", "", t)[:8]
+    first = (intro_sentences(html) or [""])[0]
+    samef = [f for _, f in recent[-4:] if f and lead(f) == lead(first)]
+    if samef:
+        out.append(("최근 글과 같은 첫 문장 시작 없음", f"첫 문장이 최근 글과 똑같이 '{lead(first)}…'로 시작한다 — 다르게 시작"))
+    return out
 
 
 def _josa(word, a, b):
@@ -203,19 +253,12 @@ def autofix(folder: Path, kw: str):
     for a, b in SWAP.items():
         html = re.sub(r"(>[^<]*?)" + re.escape(a), lambda m: m.group(1) + b, html)
 
-    # 2) 도입 첫 2문장에 메인 키워드가 없으면, 대표이미지 바로 뒤에 키워드 리드 문장 1개 추가
-    if not has_kw(" ".join(intro_sentences(html)[:2])):
-        st = _style(html)
-        lead = LEADS[st][sum(map(ord, title)) % 3].format(k=kw, j=_josa(kw, "을", "를"))
-        m = re.search(r"<img\b[^>]*>(\s*</p>)?(\s*<br\s*/?>)*", html, flags=re.I)
-        pos = m.end() if m and m.start() < 300 else 0
-        html = html[:pos] + f"<p>{lead}</p>" + html[pos:]
-
+    # 2) 도입에 키워드가 없으면 자동 문장 삽입 안 함(틀 문장은 애드센스 저품질 신호) — 쓰는 사람이 직접 고친다
     # 3) 키워드 든 문단 3개 이상 + h2에 키워드 — 뒤쪽 h2부터 키워드 붙이기
     def kw_paras(h):
         return sum(1 for x in re.findall(r"<(?:p|li|h2|h3|td)[^>]*>(.*?)</(?:p|li|h2|h3|td)>", h, flags=re.S) if has_kw(x))
     h2s = re.findall(r"(<h2[^>]*>)(.*?)(</h2>)", html, flags=re.S)
-    order = [h for h in h2s[1:] if not has_kw(h[1])] + ([h2s[0]] if h2s and not has_kw(h2s[0][1]) else [])
+    order = [h for h in h2s[1:] if not has_kw(h[1]) and not re.search(r"마무리|정리하며|맺으며", h[1])][:1] + ([h2s[0]] if h2s and not has_kw(h2s[0][1]) else [])
     need_h2 = not any(has_kw(h[1]) for h in h2s)
     for o, t, c in order:
         if not need_h2 and kw_paras(html) >= 3:
@@ -242,7 +285,7 @@ def report(folder, total, checks):
     lines = [f"[{'통과' if total >= PASS else '보류'}] {total}/100  {folder.name}"]
     for name, pts, ok, fix in checks:
         if not ok:
-            lines.append(f"   -{pts:>2}  {name} → {fix}")
+            lines.append(f"   -{abs(pts):>2}  {name} → {fix}")
     return "\n".join(lines)
 
 

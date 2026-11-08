@@ -27,11 +27,13 @@ def build(spec):
                 out += ["".join(t) + "</table>", BR]
             elif kind == "ol":
                 out.append("<ol>" + "".join(f"<li>{x}</li>" for x in blk[1]) + "</ol>"); out.append(BR)
+    if spec.get("refs"):
+        out.append('<p style="font-size:13px;color:#666;">참고 자료: ' + " · ".join(spec["refs"]) + "</p>")
     out.append(f'<p style="font-size:12px;color:#888;">{spec["foot"]}</p>')
     return "\n".join(out)
 
 def check(html):
-    body = re.sub(r"<p style=\"font-size:12px.*?</p>", "", html)
+    body = re.sub(r"<p style=\"font-size:1[23]px.*?</p>", "", html)
     text = re.sub(r"<[^>]+>", "", re.sub(r"<table.*?</table>", "", body, flags=re.S))
     n = len(re.sub(r"\s", "", re.sub(r"<[^>]+>", "", html)))
     bad = [p for p in re.findall(r"<p>(.*?)</p>", body) if p not in ("<br>",) and not p.rstrip().endswith("다.")]

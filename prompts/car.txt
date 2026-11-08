@@ -1,0 +1,19 @@
+자동차 생활 정보 블로그(https://cardurion.blogspot.com) 글 2편을 써서 오늘 한국시간 랜덤 시각 2개에 각각 예약 발행한다. ★최우선 목표는 구글 애드센스 승인 통과다. 저장소 MoneyInsight/blogger-auto main의 posts/queue/에 글폴더를 push하면 GitHub Actions가 블로거에 예약 등록한다.
+★사용량: 도구 호출 총 16회 이내, 웹 검색 최대 4회(2편 합계), 설명·요약·보고 없음. 생각은 짧게, 단 제목과 첫 문장은 공들여. 성공 시 알림 없이 한 줄로 끝.
+
+[1] Bash 1번: 작업폴더에 저장소가 없으면 git clone --depth 30 https://github.com/MoneyInsight/blogger-auto.git, 있으면 git fetch -q origin main && git checkout -q -B main origin/main. git config user.name MoneyInsight, user.email scream0506@users.noreply.github.com. 그리고 `cat prompts/COMMON.md tools/spec_example.json; grep -l '"series": "car-adsense"' posts/published/*/post.json | xargs -r grep -h '"title"' | tail -40` 로 공통 지침·글 설계 형식·이 블로그에 이미 쓴 제목을 본다. (push가 막히면 ToolSearch "add_repo" → mcp__claude-code-remote__add_repo(owner=MoneyInsight, repo=blogger-auto, access=push) 후 재시도.) 같은 턴에 ToolSearch "select:WebSearch".
+
+[2] prompts/COMMON.md 를 그대로 따라 2편을 쓰고 검사·발행·확인한다(이 지시문의 블로그별 값 외에는 COMMON.md가 우선한다). 2편은 서로 다른 분야·다른 제목 형태·다른 구성으로 쓴다.
+
+[블로그별 값]
+- spec의 meta: {"labels": ["자동차정보"], "blog": "car", "series": "car-adsense"} + publish_at. 글폴더 접두어: car (예: posts/queue/2026-11-09-0812-car-영문슬러그)
+- 블로그 정체성: 운전자가 실제로 겪는 차량 관리·운전·행정 고민에 답하는 자동차 생활 정보 노트
+- 주제 후보: 계절별 차량 점검(배터리·타이어·부동액·와이퍼), 자동차세 연납·납부, 보험 갱신 때 확인할 점(상품 추천 없이), 과태료·범칙금·통행료 조회, 정기검사, 연비 운전 습관, 눈길·빗길·야간 운전, 바뀐 교통법규, 전기차 충전·겨울 주행, 중고차 사고팔 때 확인할 것, 사고 대처 순서, 소모품 교환 주기
+- 확인할 공식 출처: 한국교통안전공단, 국토교통부, 경찰청, 도로교통공단, 행정안전부(위택스), 한국도로공사
+- 주의: 세금·과태료·법규 숫자는 공식 출처로 확인한다. 정비는 차종마다 달라 차량 설명서·정비소 확인을 권한다. 특정 보험사·정비업체·제품 추천 금지.
+- 문체: 본문의 모든 문장은 "~다."로 끝나는 평서체(~한다. ~이다. ~했다.). "~요." "~죠." "~세요." 종결과 본문 물음표 금지. 화자는 필요할 때만 1인칭 "나".
+- foot: "※ 2026년 기준 공공기관 안내를 바탕으로 정리한 글이며, 차종과 연식에 따라 기준이 다를 수 있어 차량 설명서와 공식 안내를 함께 확인하길 바란다."
+- thumb top: "자동차 생활 정보 노트"
+
+[3] 결과: 두 편 모두 SCHEDULED 또는 LIVE면 최종 답변 "예약: HH:MM 제목1 / HH:MM 제목2" 한 줄(알림 없음). 실패 처리는 COMMON.md 6번.
+모든 출력은 한국어.

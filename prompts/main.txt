@@ -1,0 +1,19 @@
+재테크 블로그 「재테크의 모든 것」(https://durion0506.blogspot.com) 글 2편을 써서 오늘 한국시간 랜덤 시각 2개에 각각 예약 발행한다. ★최우선 목표는 구글 애드센스 승인 통과다. 저장소 MoneyInsight/blogger-auto main의 posts/queue/에 글폴더를 push하면 GitHub Actions가 블로거에 예약 등록한다.
+★사용량: 도구 호출 총 16회 이내, 웹 검색 최대 4회(2편 합계), 설명·요약·보고 없음. 생각은 짧게, 단 제목과 첫 문장은 공들여. 성공 시 알림 없이 한 줄로 끝.
+
+[1] Bash 1번: 작업폴더에 저장소가 없으면 git clone --depth 30 https://github.com/MoneyInsight/blogger-auto.git, 있으면 git fetch -q origin main && git checkout -q -B main origin/main. git config user.name MoneyInsight, user.email scream0506@users.noreply.github.com. 그리고 `cat prompts/COMMON.md tools/spec_example.json ADSENSE_PLAN.md; grep -l '"series": "adsense"' posts/published/*/post.json | xargs -r grep -h '"title"' | tail -40` 로 공통 지침·글 설계 형식·이 블로그에 이미 쓴 제목을 본다. (push가 막히면 ToolSearch "add_repo" → mcp__claude-code-remote__add_repo(owner=MoneyInsight, repo=blogger-auto, access=push) 후 재시도.) 같은 턴에 ToolSearch "select:WebSearch".
+
+[2] prompts/COMMON.md 를 그대로 따라 2편을 쓰고 검사·발행·확인한다(이 지시문의 블로그별 값 외에는 COMMON.md가 우선한다). 2편은 서로 다른 분야·다른 제목 형태·다른 구성으로 쓴다.
+
+[블로그별 값]
+- spec의 meta: {"labels": ["재테크"], "series": "adsense", "description": 검색 설명} ("blog" 키는 넣지 않는다 = 메인 블로그) + publish_at. 글폴더 접두어: eco-<계획표 slug> (예: posts/queue/2026-11-09-0812-eco-<계획표 slug>-영문슬러그)
+- 블로그 정체성: 1인 사업자와 가정이 실제로 부딪히는 세금·통장·저축 고민을 기준과 순서로 정리하는 생활 재테크 노트
+- 주제 후보: ADSENSE_PLAN.md 표에서 위에서부터 posts/published 폴더 이름에 slug가 아직 없는 주제 2개(표를 다 썼으면 같은 정체성 안에서 겹치지 않는 새 주제). 검색 설명(description): 글 요약 1문장 60~100자, 메인 키워드 포함, "~정리했습니다."로 끝
+- 확인할 공식 출처: 국세청, 홈택스, 금융감독원(금융상품통합비교공시), 중소벤처기업부·중소기업중앙회, 한국은행
+- 주의: 특정 금융상품·종목·회사 추천 금지, 투자 권유 금지, 세법·금리·한도는 "2026년 기준"을 밝힌다.
+- 문체: 존댓말 합니다체. 본문 모든 문장은 "~습니다." "~입니다." "~바랍니다."처럼 "다."로 끝낸다. "~요." "~죠." 종결과 본문 물음표 금지. 화자는 필요할 때만 1인칭 "저".
+- foot: "※ 본 글은 2026년 기준 공개 자료를 바탕으로 정리한 정보이며, 세금·금융 상품 선택은 본인 상황에 맞게 전문가와 확인하시길 바랍니다."
+- thumb top: "생활 재테크 노트"
+
+[3] 결과: 두 편 모두 SCHEDULED 또는 LIVE면, 블로거 API로는 검색 설명 칸을 채울 수 없으므로 PushNotification 1번(<routine_summary> 안): "오늘 재테크 글 2편 예약 완료\n① HH:MM 제목1\n검색 설명: …\n② HH:MM 제목2\n검색 설명: …". 최종 답변도 같은 내용. 실패 처리는 COMMON.md 6번.
+모든 출력은 한국어.
