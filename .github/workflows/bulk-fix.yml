@@ -1,0 +1,38 @@
+name: 기존 글 일괄 정리 (애드센스 대비)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/bulk_fix.json"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: blogger-publish
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: 정리 실행
+        env:
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          IT_REFRESH_TOKEN: ${{ secrets.IT_REFRESH_TOKEN }}
+        run: python tools/bulk_fix.py
+      - name: 커밋
+        run: |
+          git config user.name blogger-bot
+          git config user.email blogger-bot@users.noreply.github.com
+          git add posts/audit tools/bulk_fix.json
+          git diff --cached --quiet || (git commit -m "기존 글 일괄 정리 결과" && (git push || (git pull --rebase && git push)))
