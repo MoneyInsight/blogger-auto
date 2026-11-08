@@ -200,7 +200,16 @@ def adsense_penalties(title, html, recent):
     samef = [f for _, f in recent[-4:] if f and lead(f) == lead(first)]
     if samef:
         out.append(("최근 글과 같은 첫 문장 시작 없음", f"첫 문장이 최근 글과 똑같이 '{lead(first)}…'로 시작한다 — 다르게 시작"))
+    ai = sum(txt.count(w) for w in AI_WORDS)
+    if ai > 3:
+        found = [f"{w}×{txt.count(w)}" for w in AI_WORDS if txt.count(w)]
+        out.append(("AI 말투 3회 이하", f"AI가 쓴 글처럼 보이는 표현 {ai}회: {found} — 행동·사실로 다시 쓴다(예: '~하는 것이 좋다'→'~하면 된다'/'나는 ~했다')"))
     return out
+
+
+AI_WORDS = ["것이 좋다", "것이 좋습니다", "중요하다", "중요합니다", "핵심은", "정리하면", "무엇보다", "이처럼", "결론적으로",
+            "다양한", "효과적", "꼼꼼히", "첫째", "둘째", "셋째", "마무리하며", "알아보자", "알아보겠", "살펴보자", "살펴보겠",
+            "도움이 될 것", "꼭 기억"]
 
 
 def _josa(word, a, b):
