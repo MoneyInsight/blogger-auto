@@ -1,0 +1,34 @@
+name: 블로그 전체 글 점검 자료 받기
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/audit.trigger"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: 공개·예약 글 전체 받기
+        env:
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          IT_REFRESH_TOKEN: ${{ secrets.IT_REFRESH_TOKEN }}
+        run: python tools/audit_live.py
+      - name: 커밋
+        run: |
+          git config user.name blogger-bot
+          git config user.email blogger-bot@users.noreply.github.com
+          git add posts/audit
+          git diff --cached --quiet || (git commit -m "블로그 전체 글 점검 자료" && (git push || (git pull --rebase && git push)))
