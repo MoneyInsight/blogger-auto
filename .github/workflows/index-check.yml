@@ -1,0 +1,52 @@
+name: 구글 색인 점검 (하루 1번)
+
+on:
+  schedule:
+    # 한국시간 매일 09:13
+    - cron: "13 0 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: index-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests
+
+      - name: 모든 블로그 글 색인 여부 확인
+        env:
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          IT_REFRESH_TOKEN: ${{ secrets.IT_REFRESH_TOKEN }}
+          GSC_REFRESH_TOKEN: ${{ secrets.GSC_REFRESH_TOKEN }}
+          GSC_IT_REFRESH_TOKEN: ${{ secrets.GSC_IT_REFRESH_TOKEN }}
+        run: python tools/index_check.py
+
+      - name: 결과 저장 (실패 시 재푸시)
+        run: |
+          git config user.name blogger-bot
+          git config user.email blogger-bot@users.noreply.github.com
+          git add posts/index_status.json posts/index_status.md 2>/dev/null || true
+          git diff --cached --quiet && exit 0
+          git commit -m "구글 색인 점검 결과"
+          for i in 1 2 3 4 5; do
+            git pull --rebase -X theirs origin main && git push && exit 0
+            sleep $((i * 5))
+          done
+          exit 1

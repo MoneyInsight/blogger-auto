@@ -8,6 +8,10 @@
   3) 브라우저가 열리면 메인 구글 계정(durion0506)으로 로그인 → 허용
   4) 화면에 나온 긴 값을 GitHub 저장소 Settings > Secrets > Actions 에
      이름 GSC_REFRESH_TOKEN 으로 저장
+  5) (IT 계정 블로그도 점검하려면) 한 번 더 실행해서 IT 계정으로 로그인 →
+     값을 GSC_IT_REFRESH_TOKEN 이름으로 저장
+
+이 열쇠로 하는 일: 사이트맵 재제출(index_ping.py) + 매일 색인 여부 점검(index_check.py)
 
 ※ OAuth 클라이언트 유형이 '데스크톱 앱'이어야 합니다.
 ※ 구글 클라우드 콘솔에서 'Google Search Console API'를 '사용'으로 켜 두세요.
