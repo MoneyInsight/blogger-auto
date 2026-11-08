@@ -129,11 +129,22 @@ def build_html(folder: Path) -> str:
     html = re.sub(r'(<img[^>]*?\ssrc=["\'])([^"\']+)(["\'])', swap, html, flags=re.I)
 
     def responsive(m):
+        if "author-avatar" in m.group(0):
+            return m.group(0)
         tag = re.sub(r'\s(?:style|width|height)=("[^"]*"|\'[^\']*\')', '', m.group(0))
         tag = re.sub(r'\s*/?>$', '', tag)
         return tag + ' style="max-width:100%;width:100%;height:auto;display:block;margin:0 auto;" />'
 
-    return re.sub(r'<img\b[^>]*>', responsive, html, flags=re.I)
+    html = re.sub(r'<img\b[^>]*>', responsive, html, flags=re.I)
+    try:
+        sys.path.insert(0, str(ROOT / "tools"))
+        import author
+        meta = json.loads((folder / "post.json").read_text(encoding="utf-8"))
+        b = str(meta.get("blog", "main")).lower()
+        html = author.add(html, b)
+    except Exception as e:
+        print("작성자 상자 추가 건너뜀:", e)
+    return html
 
 
 def clamp_window(ts: str) -> str:

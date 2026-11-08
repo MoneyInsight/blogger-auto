@@ -4,6 +4,7 @@
 작업: titles(글ID→새 제목), delete(글ID → 휴지통), draft(글ID → 비공개 초안으로 되돌림),
       clean=true 이면 모든 공개·예약 글 본문에서 틀에 박힌 문장·본문 링크를 정리한다."""
 import json, os, re, sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 from pathlib import Path
 import requests
 
@@ -145,6 +146,14 @@ def main():
                             body["content"] = html
                     else:
                         log = []
+                    if cfg.get("author"):
+                        import author
+                        key = next((v for k, v in author.BY_URL.items() if f"//{k}." in b.get("url", "")), "main")
+                        cur = body.get("content", p.get("content", ""))
+                        new = author.add(cur, key)
+                        if new != cur:
+                            body["content"] = new
+                            log.append(f"글쓴이 상자 추가({key})")
                     if not body:
                         continue
                     rep.append(f"- {p['title']}" + (f"\n  - 새 제목: {nt}" if "title" in body else ""))
