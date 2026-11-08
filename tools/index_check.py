@@ -126,8 +126,7 @@ def ensure_site(tok, sites, blog_url):
 
 def inspect(tok, site, url):
     for attempt in range(3):
-        r = requests.post(INSPECT, headers=H(tok), json={"inspectionUrl": url, "siteUrl": site,
-                                                           "languageCode": "ko"}, timeout=60)
+        r = requests.post(INSPECT, headers=H(tok), json={"inspectionUrl": url, "siteUrl": site}, timeout=60)
         if r.status_code == 429:
             time.sleep(20 * (attempt + 1))
             continue
