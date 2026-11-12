@@ -1,5 +1,5 @@
 {
- "mode": "dry",
+ "mode": "apply",
  "clean": false,
  "author": false,
  "scope": "itdigitaldream",
