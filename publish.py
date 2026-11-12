@@ -201,12 +201,51 @@ def seo_check(folder: Path):
                            "검사: python tools/seo_gate.py <폴더> --fix\n" + rep)
 
 
+_EXISTING = {}  # 블로그ID → {공백 뺀 제목: 글 정보}
+
+
+def _norm(title: str) -> str:
+    return "".join(str(title or "").split())
+
+
+def existing_posts(token: str, blog_id: str) -> dict:
+    """이 블로그에 이미 올라간 공개·예약 글의 제목 목록(중복 발행 방지용). 조회가 실패하면 빈 목록."""
+    if blog_id not in _EXISTING:
+        found = {}
+        try:
+            for status in ("live", "scheduled"):
+                page = None
+                while True:
+                    p = {"maxResults": 100, "status": status, "fetchBodies": "false", "view": "ADMIN"}
+                    if page:
+                        p["pageToken"] = page
+                    r = requests.get(f"{API}/blogs/{blog_id}/posts", params=p,
+                                     headers={"Authorization": f"Bearer {token}"}, timeout=60)
+                    if not r.ok:
+                        break
+                    j = r.json()
+                    for it in j.get("items", []):
+                        found.setdefault(_norm(it.get("title")), it)
+                    page = j.get("nextPageToken")
+                    if not page:
+                        break
+        except Exception as e:
+            print("기존 글 목록 조회 건너뜀:", e)
+        _EXISTING[blog_id] = found
+    return _EXISTING[blog_id]
+
+
 def publish(token: str, blog_id: str, folder: Path) -> dict:
     meta = json.loads((folder / "post.json").read_text(encoding="utf-8"))
     if (folder / "post.html").exists() and not meta.get("skip_seo_gate"):
         seo_check(folder)
     if meta.get("update_of"):
         return update(token, blog_id, folder, meta)
+    # 같은 제목의 글이 이미 공개·예약돼 있으면 새로 올리지 않는다(같은 글이 여러 번 올라가는 사고 방지)
+    dup = existing_posts(token, blog_id).get(_norm(meta["title"]))
+    if dup and not meta.get("allow_duplicate"):
+        print(f"[중복 건너뜀] 같은 제목의 글이 이미 있음: {meta['title']}")
+        return dup
     body = {
         "kind": "blogger#post",
         "title": meta["title"],
@@ -226,7 +265,9 @@ def publish(token: str, blog_id: str, folder: Path) -> dict:
     )
     if r.status_code not in (200, 201):
         raise RuntimeError(f"{r.status_code} {r.text}")
-    return r.json()
+    res = r.json()
+    existing_posts(token, blog_id)[_norm(meta["title"])] = res
+    return res
 
 
 def move(folder: Path, dest_root: Path):
@@ -244,7 +285,15 @@ def git_commit(msg: str):
     subprocess.run(["git", "add", "-A", "posts"], check=True)
     if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode != 0:
         subprocess.run(["git", "commit", "-m", msg], check=True)
-        subprocess.run(["git", "push"], check=True)
+        # 그 사이 다른 글이 push돼도 발행 기록이 반드시 저장되게 한다(저장 실패 → 같은 글 재발행의 원인)
+        import time
+        for i in range(6):
+            if (subprocess.run(["git", "pull", "--rebase", "origin", "main"]).returncode == 0
+                    and subprocess.run(["git", "push", "origin", "HEAD:main"]).returncode == 0):
+                return
+            subprocess.run(["git", "rebase", "--abort"])
+            time.sleep(5 * (i + 1))
+        raise RuntimeError("발행 기록 push 실패")
 
 
 def main():
