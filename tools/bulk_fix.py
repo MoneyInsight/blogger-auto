@@ -18,6 +18,18 @@ OPENER = re.compile(r"이 글은 ([^<>]{4,160}?)(을|를) 위해 쓴 글(이다|
 PERSONA = re.compile(r"(?:(?<=>)|(?<=\. ))\s*(?:나는|저는) (?:생활용품 )?온라인 쇼핑몰을 운영하(?:는|며|면서)[^<>.]{0,40}?(?:아빠|가장|사업자)(?:다|이다|입니다)\.")
 
 
+DETPL = re.compile(r"(?:(?<=>)|(?<=\.)|(?<=\n))[ \t]*[^<>.\n]{0,220}?(?:"
+                   r"꼭 알아야 할 기준과 순서 중심으로 정리(?:한다|했다|했습니다|합니다)"
+                   r"|, ?핵심부터 차례대로 정리했(?:다|습니다)"
+                   r"|, ?실제로 해 볼 수 있는 순서로 담았(?:다|습니다)"
+                   r"|, ?먼저 알아야 할 기준부터 적었(?:다|습니다)"
+                   r"|에 대해 바로 따라 할 수 있도록 핵심부터 정리(?:했습니다|한다|했다)"
+                   r"|라면 끝까지 읽어 볼 만하다|라면 끝까지 읽어 보시길 바랍니다"
+                   r"|라면 아래 순서대로 확인하면 된다|라면 아래 순서대로 확인해 보시면 됩니다"
+                   r"|(?:에게|께) 필요한 기준과 순서를 담았(?:다|습니다))\.")
+PERS2 = re.compile(r"(?:나는 |저는 )?온라인 쇼핑몰(?:을 (?:혼자 )?운영하(?:며|면서|는)|에서 생활용품을 팔며)[^<>.,]{0,40}?(?:가장|아빠)(?:으로서|로서|인)\s*")
+
+
 def has_batchim(s):
     ch = s.strip()[-1]
     return 0xAC00 <= ord(ch) <= 0xD7A3 and (ord(ch) - 0xAC00) % 28 != 0
@@ -120,7 +132,7 @@ def main():
                     if not page:
                         break
             scope = cfg.get("scope")  # 예: "itdigitaldream" — 아래 두 작업은 이 블로그에만 적용
-            in_scope = bool(scope) and scope in b.get("url", "")
+            in_scope = bool(scope) and (scope == "*" or scope in b.get("url", ""))
             if in_scope and cfg.get("dedupe"):  # 같은 제목 글은 1개만 남기고 삭제(keep 목록의 글ID 우선)
                 keep, groups = set(cfg.get("keep", [])), {}
                 for p in sorted(posts, key=lambda x: x.get("published", "")):
@@ -179,6 +191,26 @@ def main():
                             body["content"] = html
                     else:
                         log = []
+                    if cfg.get("detpl"):  # 틀에 박힌 도입 문장 삭제(+ first 에 적힌 새 첫 문장으로 교체), 반복 자기소개 구절 삭제
+                        cur = body.get("content", p.get("content", ""))
+                        head, tail = cur[:3000], cur[3000:]
+                        nf, st = cfg.get("first", {}).get(pid), {"done": False}
+                        def rm(m):
+                            log.append("틀 문장 삭제: " + plain(m.group(0))[:70])
+                            if nf and not st["done"]:
+                                st["done"] = True
+                                log.append("새 첫 문장: " + nf[:60])
+                                return (" " if m.group(0)[:1].isspace() and m.start() and head[m.start() - 1] != ">" else "") + nf
+                            return ""
+                        head2 = DETPL.sub(rm, head)
+                        if nf and not st["done"]:
+                            log.append("⚠️ 새 첫 문장 넣을 자리 못 찾음")
+                        h3 = PERS2.sub("", head2)
+                        if h3 != head2:
+                            log.append("반복 자기소개 구절 삭제")
+                        h3 = re.sub(r"<p>\s*</p>\n?", "", h3)
+                        if h3 != head:
+                            body["content"] = h3 + tail
                     for o, n in cfg.get("replace", {}).get(pid, []):  # 문장 단위 본문 교체
                         cur = body.get("content", p.get("content", ""))
                         if o in cur:
@@ -194,6 +226,19 @@ def main():
                             log.append(f"소제목 교체: {o} → {n}")
                         else:
                             log.append(f"⚠️ 못 찾음(소제목): {o}")
+                    if cfg.get("h2_unprefix"):  # 검사 도구가 기계적으로 붙인 '키워드, 소제목' 꼴을 원래 소제목으로
+                        cur = body.get("content", p.get("content", ""))
+                        tt = p["title"].replace(" ", "")
+                        def unp(m):
+                            pre, rest = m.group(2), m.group(3)
+                            toks = [t[:2] for t in re.findall(r"[가-힣A-Za-z0-9]{2,}", pre)]
+                            if toks and all(t in tt for t in toks) and len(rest.strip()) >= 6:
+                                log.append(f"소제목 앞 키워드 떼기: {pre}, {rest.strip()[:30]}")
+                                return m.group(1) + rest.strip()[:1].upper() + rest.strip()[1:] + m.group(4)
+                            return m.group(0)
+                        new_c = re.sub(r"(<h2[^>]*>\s*)([^<,]{2,26}), ([^<]{6,80}?)(\s*(?:<br[^>]*>)?\s*</h2>)", unp, cur)
+                        if new_c != cur:
+                            body["content"] = new_c
                     if cfg.get("author"):
                         import author
                         key = next((v for k, v in author.BY_URL.items() if f"//{k}." in b.get("url", "")), "main")
