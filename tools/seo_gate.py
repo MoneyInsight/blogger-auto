@@ -128,7 +128,7 @@ def score(folder: Path):
         not re.match(r"^(오늘은|안녕하세요|요즘|여러분)", (intro_sentences(html) or [""])[0]), "첫 문장에서 바로 답을 말하기")
 
     # ── 본문 구조 (35)
-    add("본문 1,300자 이상(공백 제외)", 10, body_chars >= 1300, f"지금 {body_chars}자")
+    add("본문 1,500자 이상(공백 제외)", 10, body_chars >= 1500, f"지금 {body_chars}자")
     add("키워드 들어간 문단 3~12개(과다 반복 아님)", 5, 3 <= kw_count <= 12, f"지금 {kw_count}개 — 소제목·문단에 자연스럽게 더 넣기" if kw_count < 3 else f"지금 {kw_count}개 — 반복 줄이기")
     add("소제목(h2) 3개 이상", 8, len(h2s) >= 3, f"지금 {len(h2s)}개")
     add("소제목 중 1개 이상에 키워드", 5, any(has_kw(plain(h)) for h in h2s), f"h2 하나에 '{kw}' 넣기")

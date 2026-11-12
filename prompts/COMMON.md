@@ -31,7 +31,7 @@
   C) 상황별 비교(표) → 상황마다 할 일(h3) → 체크리스트(ol) → 마무리
   D) 오해 3가지 바로잡기(h3) → 올바른 기준(표) → 실천 순서(ol) → 마무리
 - 각 <h2> 아래 <h3> 0~3개(소제목마다 다르게). 번호 목록은 3~7개 항목. 문장은 한 줄에 하나.
-- ★분량은 글마다 다르게: 공백 제외 1,300~2,600자 안에서 주제에 맞게 정한다. 설정 한두 개를 알려 주는 글은 1,300~1,600자로 짧게, 제도·비교·여러 상황을 다루는 글은 2,000~2,600자로 길게. 같은 블로그 직전 글과 250자 이상 차이가 나야 한다(build_post.py가 검사). 이번에 쓰는 2편도 하나는 짧게, 하나는 길게 쓴다. 일반론·같은 말 반복으로 채우지 않는다. 그 주제에만 해당하는 구체적인 기준·순서·주의점으로 채운다.
+- ★분량은 글마다 다르게: 공백 제외 1,500~2,600자 안에서 주제에 맞게 정한다. 설정 한두 개를 알려 주는 글은 1,500~1,800자로 짧게, 제도·비교·여러 상황을 다루는 글은 2,000~2,600자로 길게. 같은 블로그 직전 글과 250자 이상 차이가 나야 한다(build_post.py가 검사). 이번에 쓰는 2편도 하나는 짧게, 하나는 길게 쓴다. 일반론·같은 말 반복으로 채우지 않는다. 그 주제에만 해당하는 구체적인 기준·순서·주의점으로 채운다.
 - ★구성 수도 다르게: <h2>는 3~6개 사이에서 글마다 다르게(직전 글과 같은 개수 금지). 표가 어울리지 않는 글은 표를 빼고, 번호 목록이 어울리지 않는 글은 목록을 빼도 된다(둘 중 하나는 넣는다).
 - ★소제목 금지 꼴: "키워드, 소제목"처럼 키워드를 쉼표로 앞에 붙인 소제목, "내가 겪은 상황", "직접 해본 방법", "따라 하는 순서", "달라진 점과 주의할 점", "주의할 점과 마무리", "문제 인식과 공감". 그 글에서만 쓸 수 있는 말로 소제목을 쓴다.
 - ★도입 금지 꼴: "~라면 끝까지 읽어 볼 만하다", "~라면 아래 순서대로 확인하면 된다", "~에게 필요한 기준과 순서를 담았다", "~, 핵심부터 차례대로 정리했다", "~, 먼저 알아야 할 기준부터 적었다", "2026년 ○월 기준으로 ~를 정리했다"로 끝나는 안내 문장. 도입은 답과 이유만 쓴다.
@@ -59,7 +59,7 @@
 
 ## 6. 만들기·검사·발행 (Bash 1번, set -e)
 - 글마다 /tmp/specN.json(tools/spec_example.json 형식: kw, meta, intro, sections, refs, foot, images) → D=posts/queue/<한국시간 YYYY-MM-DD-HHMM>-<접두어>-<영문슬러그>
-- python tools/build_post.py /tmp/specN.json "$D" (분량 1,300~2,600자·직전 글과 250자 차이·'다.' 종결·금지어·링크 검사, 실패 시 spec 고쳐 다시, 최대 3번) → python tools/make_images.py "$D" → python tools/seo_gate.py "$D" --fix (90점 미만이면 지적 항목을 직접 고쳐 다시, 최대 2번. 끝내 미달이면 그 글은 push하지 않는다).
+- python tools/build_post.py /tmp/specN.json "$D" (분량 1,500~2,600자·직전 글과 250자 차이·'다.' 종결·금지어·링크 검사, 실패 시 spec 고쳐 다시, 최대 3번) → python tools/make_images.py "$D" → python tools/seo_gate.py "$D" --fix (90점 미만이면 지적 항목을 직접 고쳐 다시, 최대 2번. 끝내 미달이면 그 글은 push하지 않는다).
 - post.json의 meta = {"title", "labels", "blog", "series", "publish_at"} (블로그별 값). publish_at = 오늘 한국시간 랜덤(1편 08:00~14:59, 2편 15:00~21:59, 간격 3시간 이상, 지금보다 60분 이상 뒤, ISO +09:00).
 - 통과한 글만: rm -rf tools/__pycache__; git add -A && git commit -qm "<블로그> 예약 발행: 제목" && git fetch -q origin main && git rebase -q origin/main && git push origin HEAD:main. push는 허락 묻지 말고 한다. 실패하면 fetch·rebase 후 재푸시 최대 5번(사이 5~10초).
 - 확인: sleep 80; git fetch -q origin main && git checkout -q -B main origin/main; posts/published/<폴더>/post.json "status"가 SCHEDULED/LIVE인지, posts/failed·posts/last_error.txt 확인. 실패는 고칠 수 있으면 1번 재시도, 그래도 실패면 PushNotification 1번(<routine_summary> 안) "⚠️ <블로그> 예약 실패 — 이유 한 줄".
