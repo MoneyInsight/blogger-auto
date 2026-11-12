@@ -179,6 +179,21 @@ def main():
                             body["content"] = html
                     else:
                         log = []
+                    for o, n in cfg.get("replace", {}).get(pid, []):  # 문장 단위 본문 교체
+                        cur = body.get("content", p.get("content", ""))
+                        if o in cur:
+                            body["content"] = cur.replace(o, n, 1)
+                            log.append(f"문장 교체: {o[:30]}… → {n[:40]}")
+                        else:
+                            log.append(f"⚠️ 못 찾음(문장): {o[:40]}")
+                    for o, n in cfg.get("h2", {}).get(pid, {}).items():  # 소제목 교체
+                        cur = body.get("content", p.get("content", ""))
+                        new_c, k = re.subn(r"(<h2[^>]*>\s*)" + re.escape(o) + r"(\s*(?:<br[^>]*>)?\s*</h2>)", lambda m: m.group(1) + n + m.group(2), cur, count=1)
+                        if k:
+                            body["content"] = new_c
+                            log.append(f"소제목 교체: {o} → {n}")
+                        else:
+                            log.append(f"⚠️ 못 찾음(소제목): {o}")
                     if cfg.get("author"):
                         import author
                         key = next((v for k, v in author.BY_URL.items() if f"//{k}." in b.get("url", "")), "main")
@@ -188,6 +203,9 @@ def main():
                             body["content"] = new
                             log.append(f"글쓴이 상자 추가({key})")
                     if not body:
+                        if log:
+                            rep.append(f"- {p['title']}")
+                            rep += [f"  - {x}" for x in log]
                         continue
                     rep.append(f"- {p['title']}" + (f"\n  - 새 제목: {nt}" if "title" in body else ""))
                     rep += [f"  - {x}" for x in log]
