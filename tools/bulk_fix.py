@@ -229,14 +229,17 @@ def main():
                     if cfg.get("h2_unprefix"):  # 검사 도구가 기계적으로 붙인 '키워드, 소제목' 꼴을 원래 소제목으로
                         cur = body.get("content", p.get("content", ""))
                         tt = p["title"].replace(" ", "")
+                        H2P = r"(<h2[^>]*>\s*)([^<,]{2,26}), ([^<]{6,80}?)(\s*(?:<br[^>]*>)?\s*</h2>)"
+                        pres = [m.group(2).strip() for m in re.finditer(H2P, cur)]
                         def unp(m):
                             pre, rest = m.group(2), m.group(3)
                             toks = [t[:2] for t in re.findall(r"[가-힣A-Za-z0-9]{2,}", pre)]
-                            if toks and all(t in tt for t in toks) and len(rest.strip()) >= 6:
+                            # 같은 글에서 같은 머리말이 2번 이상 붙은 경우만(자연스러운 '가, 나' 소제목은 건드리지 않음)
+                            if pres.count(pre.strip()) >= 2 and toks and all(t in tt for t in toks) and len(rest.strip()) >= 6:
                                 log.append(f"소제목 앞 키워드 떼기: {pre}, {rest.strip()[:30]}")
                                 return m.group(1) + rest.strip()[:1].upper() + rest.strip()[1:] + m.group(4)
                             return m.group(0)
-                        new_c = re.sub(r"(<h2[^>]*>\s*)([^<,]{2,26}), ([^<]{6,80}?)(\s*(?:<br[^>]*>)?\s*</h2>)", unp, cur)
+                        new_c = re.sub(H2P, unp, cur)
                         if new_c != cur:
                             body["content"] = new_c
                     if cfg.get("author"):
