@@ -1,4 +1,4 @@
-"""글 설계(spec.json) → post.html·post.json·images.json 생성 + 분량(1,500~1,900자)·'다.' 종결·금지어·링크·h1 검사.
+"""글 설계(spec.json) → post.html·post.json·images.json 생성 + 분량(1,300~2,600자, 직전 글과 250자 이상 차이)·'다.' 종결·금지어·링크·h1 검사.
 사용: python tools/build_post.py spec.json posts/queue/<글폴더>   (검사 실패 시 종료코드 1, 파일 안 만듦)
 spec 형식 예시는 tools/spec_example.json
 """
@@ -46,7 +46,24 @@ spec = json.load(open(sys.argv[1], encoding="utf-8"))
 html = build(spec)
 n, bad, forb = check(html)
 print("글자수", n, "| 다.위반", bad, "| 금지어", forb)
-if n < 1500 or n > 1900 or bad or forb: sys.exit(1)
+# 분량은 글마다 달라야 한다: 1,300~2,600자 안에서, 같은 블로그 직전 글과 250자 이상 차이
+def _prev_len(blog):
+    root = Path(__file__).resolve().parent.parent / "posts"
+    cur = Path(sys.argv[2]).name
+    cands = sorted((p for d in ("queue", "published") for p in (root / d).glob("*/post.json") if p.parent.name != cur),
+                   key=lambda p: p.parent.name, reverse=True)
+    for p in cands[:400]:
+        try:
+            if json.loads(p.read_text(encoding="utf-8")).get("blog") == blog and (p.parent / "post.html").exists():
+                h = (p.parent / "post.html").read_text(encoding="utf-8")
+                return len(re.sub(r"\s", "", re.sub(r"<[^>]+>", "", h)))
+        except Exception:
+            pass
+    return None
+prev = _prev_len(spec.get("meta", {}).get("blog"))
+same = prev is not None and abs(n - prev) < 250
+if same: print(f"분량이 같은 블로그 직전 글({prev}자)과 비슷함 — 250자 이상 차이 나게 줄이거나 늘린다(억지로 늘리지 말고 구성을 바꾼다)")
+if n < 1300 or n > 2600 or same or bad or forb: sys.exit(1)
 D = Path(sys.argv[2]); D.mkdir(parents=True, exist_ok=True)
 (D/"post.html").write_text(html, encoding="utf-8")
 (D/"images.json").write_text(json.dumps(spec["images"], ensure_ascii=False, indent=1), encoding="utf-8")

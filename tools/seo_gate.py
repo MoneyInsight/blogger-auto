@@ -118,7 +118,7 @@ def score(folder: Path):
     # ── 제목 (25)
     add("제목 길이 25~60자", 5, 25 <= len(title) <= 60, f"지금 {len(title)}자")
     add("제목 앞 15자 안에 메인 키워드", 10, k[:4] in title.replace(" ", "")[:17], f"'{kw}'를 제목 맨 앞으로")
-    add("제목에 숫자", 5, re.search(r"\d", title), "구체적인 숫자 1개 넣기")
+    add("제목 형태(숫자는 필요할 때만 — 모든 글에 숫자를 넣으면 찍어낸 글로 보인다)", 5, True, "")
     dup = [t for t in siblings_titles(folder, blog, str(meta.get("update_of") or meta.get("blogger_id") or "")) if similar(title, t) >= 0.7]
     add("같은 블로그에 비슷한 제목 없음(중복·자기잠식 방지)", 5, not dup, f"비슷한 글: {dup[:2]}")
 
@@ -128,7 +128,7 @@ def score(folder: Path):
         not re.match(r"^(오늘은|안녕하세요|요즘|여러분)", (intro_sentences(html) or [""])[0]), "첫 문장에서 바로 답을 말하기")
 
     # ── 본문 구조 (35)
-    add("본문 1,500자 이상(공백 제외)", 10, body_chars >= 1500, f"지금 {body_chars}자")
+    add("본문 1,300자 이상(공백 제외)", 10, body_chars >= 1300, f"지금 {body_chars}자")
     add("키워드 들어간 문단 3~12개(과다 반복 아님)", 5, 3 <= kw_count <= 12, f"지금 {kw_count}개 — 소제목·문단에 자연스럽게 더 넣기" if kw_count < 3 else f"지금 {kw_count}개 — 반복 줄이기")
     add("소제목(h2) 3개 이상", 8, len(h2s) >= 3, f"지금 {len(h2s)}개")
     add("소제목 중 1개 이상에 키워드", 5, any(has_kw(plain(h)) for h in h2s), f"h2 하나에 '{kw}' 넣기")
@@ -263,21 +263,7 @@ def autofix(folder: Path, kw: str):
         html = re.sub(r"(>[^<]*?)" + re.escape(a), lambda m: m.group(1) + b, html)
 
     # 2) 도입에 키워드가 없으면 자동 문장 삽입 안 함(틀 문장은 애드센스 저품질 신호) — 쓰는 사람이 직접 고친다
-    # 3) 키워드 든 문단 3개 이상 + h2에 키워드 — 뒤쪽 h2부터 키워드 붙이기
-    def kw_paras(h):
-        return sum(1 for x in re.findall(r"<(?:p|li|h2|h3|td)[^>]*>(.*?)</(?:p|li|h2|h3|td)>", h, flags=re.S) if has_kw(x))
-    h2s = re.findall(r"(<h2[^>]*>)(.*?)(</h2>)", html, flags=re.S)
-    order = [h for h in h2s[1:] if not has_kw(h[1]) and not re.search(r"마무리|정리하며|맺으며", h[1])][:1] + ([h2s[0]] if h2s and not has_kw(h2s[0][1]) else [])
-    need_h2 = not any(has_kw(h[1]) for h in h2s)
-    for o, t, c in order:
-        if not need_h2 and kw_paras(html) >= 3:
-            break
-        txt = plain(t)
-        new = f"{kw}, {txt}" if not txt.startswith(kw) else txt
-        html = html.replace(o + t + c, o + new + c, 1)
-        need_h2 = False
-        if kw_paras(html) >= 3 and len(order) and o + new + c in html and need_h2 is False and kw_paras(html) >= 3:
-            break
+    # 3) 소제목 앞에 키워드를 기계적으로 붙이지 않는다('키워드, 소제목' 꼴은 찍어낸 글 신호) — 쓰는 사람이 소제목을 직접 고친다
 
     # 4) 이미지 alt
     def alt(m):
