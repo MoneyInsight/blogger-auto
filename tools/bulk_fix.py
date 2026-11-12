@@ -119,6 +119,39 @@ def main():
                     page = j.get("nextPageToken")
                     if not page:
                         break
+            scope = cfg.get("scope")  # 예: "itdigitaldream" — 아래 두 작업은 이 블로그에만 적용
+            in_scope = bool(scope) and scope in b.get("url", "")
+            if in_scope and cfg.get("dedupe"):  # 같은 제목 글은 1개만 남기고 삭제(keep 목록의 글ID 우선)
+                keep, groups = set(cfg.get("keep", [])), {}
+                for p in sorted(posts, key=lambda x: x.get("published", "")):
+                    groups.setdefault(re.sub(r"\s+", "", p.get("title", "")), []).append(p)
+                for g in groups.values():
+                    if len(g) > 1:
+                        k = next((x for x in g if x["id"] in keep), g[0])
+                        delete |= {x["id"] for x in g if x["id"] != k["id"]}
+            if in_scope and cfg.get("delete_drafts"):  # 비공개(초안) 글 전체 삭제
+                import time
+                page = None
+                while True:
+                    q = {"maxResults": 100, "status": "draft", "fetchBodies": "false", "view": "ADMIN"}
+                    if page:
+                        q["pageToken"] = page
+                    j = requests.get(f"{API}/blogs/{b['id']}/posts", headers=H, params=q, timeout=60).json()
+                    for d in j.get("items", []):
+                        rep.append(f"- 🗑 초안 삭제: {d.get('title')}")
+                        if mode == "apply":
+                            try:
+                                r = requests.delete(f"{API}/blogs/{b['id']}/posts/{d['id']}", headers=H, timeout=60)
+                                r.raise_for_status()
+                                time.sleep(0.4)
+                            except Exception as e:
+                                cnt["실패"] += 1
+                                rep.append(f"  - ⚠️ 실패: {e}")
+                                continue
+                        cnt["삭제"] += 1
+                    page = j.get("nextPageToken")
+                    if not page or mode == "apply" and not j.get("items"):
+                        break
             for i, p in enumerate(posts):
                 pid = p["id"]
                 try:
