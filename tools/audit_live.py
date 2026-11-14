@@ -53,7 +53,15 @@ for acct, ref in (("main", c("BLOGGER_REFRESH_TOKEN")), ("it", c("IT_REFRESH_TOK
                 page = j.get("nextPageToken")
                 if not page:
                     break
-        out["blogs"].append({"account": acct, "id": b["id"], "name": b.get("name"), "url": b.get("url"), "posts": posts})
+        pages = []
+        try:
+            r = requests.get(f"{API}/blogs/{b['id']}/pages", headers=H, params={"status": "live", "fetchBodies": "true"}, timeout=60)
+            for it in (r.json().get("items", []) if r.ok else []):
+                pages.append({"title": it.get("title"), "url": it.get("url"), "chars": len(plain(it.get("content", "")))})
+        except Exception as e:
+            pages.append({"error": str(e)[:200]})
+        out["blogs"].append({"account": acct, "id": b["id"], "name": b.get("name"), "url": b.get("url"),
+                             "description": b.get("description", ""), "pages": pages, "posts": posts})
 
 Path("posts/audit").mkdir(parents=True, exist_ok=True)
 Path("posts/audit/live.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")

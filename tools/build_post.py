@@ -63,7 +63,14 @@ def _prev_len(blog):
 prev = _prev_len(spec.get("meta", {}).get("blog"))
 same = prev is not None and abs(n - prev) < 250
 if same: print(f"분량이 같은 블로그 직전 글({prev}자)과 비슷함 — 250자 이상 차이 나게 줄이거나 늘린다(억지로 늘리지 말고 구성을 바꾼다)")
-if n < 1500 or n > 2600 or same or bad or forb: sys.exit(1)
+# 8개 블로그 전체에서 같은 고민을 다룬 글이 있으면 보류(애드센스 '중복·대량 생산' 신호 방지)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dup_check import check as _dup
+dups = _dup(spec.get("meta", {}).get("title", ""), spec.get("kw", ""), Path(sys.argv[2]).name)
+for h in dups[:5]:
+    print("중복 의심", h)
+if dups: print("→ 8개 블로그 어디에든 같은 고민을 다룬 글이 있다. 주제 자체를 바꾼다(각도·제목만 바꾸지 않는다).")
+if n < 1500 or n > 2600 or same or bad or forb or dups: sys.exit(1)
 D = Path(sys.argv[2]); D.mkdir(parents=True, exist_ok=True)
 (D/"post.html").write_text(html, encoding="utf-8")
 (D/"images.json").write_text(json.dumps(spec["images"], ensure_ascii=False, indent=1), encoding="utf-8")
