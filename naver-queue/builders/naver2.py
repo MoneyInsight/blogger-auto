@@ -33,6 +33,6 @@ def build(i,kind,label,title,kw,thumb,intro2,box,secs,table,closing,src,tags,pro
     txt=re.sub(r'<[^>]+>','',body).replace(' ','').replace('\n','')
     kwp=sum(kw in x for x in re.findall(r'<p>(.*?)</p>',body))+sum(kw in h for h,_ in secs)
     LOG.append(f'{i:02d} {kind} 본문{len(txt)} 제목{len(title)} 키워드문단{kwp} 15자:{kw[:3] in title[:15]} 첫문단:{kw in intro2[0]} 하루:{"하루" in html}')
-    d=f'{Q}/20261117-{i:02d}'; os.makedirs(d,exist_ok=True)
+    d=f'{Q}/20261118-{i:02d}'; os.makedirs(d,exist_ok=True)
     json.dump({"label":label,"title":title,"thumb":"thumb.png","images":[],"tags":[],"html":html,"product_urls":[S]+([prod["url"]] if prod else [])},open(d+'/post.json','w',encoding='utf8'),ensure_ascii=False,indent=1)
     render(thumb,SER[kind],n).save(d+'/thumb.png')
