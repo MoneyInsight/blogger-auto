@@ -1,0 +1,34 @@
+name: 블로그 소개·운영자 소개 페이지 반영
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/pages_fix.trigger"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: 페이지 반영
+        env:
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          IT_REFRESH_TOKEN: ${{ secrets.IT_REFRESH_TOKEN }}
+        run: python tools/pages_fix.py
+      - name: 커밋
+        run: |
+          git config user.name blogger-bot
+          git config user.email blogger-bot@users.noreply.github.com
+          git add posts/audit
+          git diff --cached --quiet || (git commit -m "페이지 반영 결과" && (git push || (git pull --rebase && git push)))
