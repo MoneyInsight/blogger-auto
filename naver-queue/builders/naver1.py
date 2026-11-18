@@ -5,7 +5,7 @@ cu=json.load(open(R+'/coupang/links.json'))['items']; B=['https://naver.me/FdqfX
 S='https://smartstore.naver.com/sonkb/products/13803027356'; E='<p><br></p>'
 RR=(17-1)*24+11
 T=lambda rows,head:'<table border="1" style="border-collapse:collapse;width:100%"><tr>'+''.join(f'<th>{h}</th>' for h in head)+'</tr>'+''.join('<tr>'+''.join(f'<td>{c}</td>' for c in r)+'</tr>' for r in rows)+'</table>'
-SER={'경제':'오늘의 돈 브리핑 · 11.18','건강':'오늘의 건강 체크 · 11.18','IT':'오늘의 IT 트렌드 · 11.18'}
+SER={'경제':'오늘의 돈 브리핑 · 11.19','건강':'오늘의 건강 체크 · 11.19','IT':'오늘의 IT 트렌드 · 11.19'}
 DIS={'경제':'※ 본 글은 투자 권유가 아니며, 투자 판단과 책임은 본인에게 있습니다.','건강':'※ 본 글은 일반 건강 정보이며, 개인 건강 상태에 따른 판단은 의사와 상담하세요.','IT':'※ 본 글은 공개된 보도·발표를 바탕으로 정리한 정보이며, 기기·앱 버전에 따라 내용이 다를 수 있습니다.'}
 LOG=[]
 DISC={'쿠팡': '이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.', '네이버': '네이버 브랜드 커넥트 링크를 통해 구매하면 판매 수익의 일부를 수수료로 받을 수 있습니다.'}
@@ -33,6 +33,6 @@ def build(i,kind,label,title,kw,thumb,intro2,box,secs,table,closing,src,tags,pro
     txt=re.sub(r'<[^>]+>','',body).replace(' ','').replace('\n','')
     kwp=sum(kw in x for x in re.findall(r'<p>(.*?)</p>',body))+sum(kw in h for h,_ in secs)
     LOG.append(f'{i:02d} {kind} 본문{len(txt)} 제목{len(title)} 키워드문단{kwp} 15자:{kw[:3] in title[:15]} 첫문단:{kw in intro2[0]} 하루:{"하루" in html}')
-    d=f'{Q}/20261118-{i:02d}'; os.makedirs(d,exist_ok=True)
+    d=f'{Q}/20261119-{i:02d}'; os.makedirs(d,exist_ok=True)
     json.dump({"label":label,"title":title,"thumb":"thumb.png","images":[],"tags":[],"html":html,"product_urls":[S]+([prod["url"]] if prod else [])},open(d+'/post.json','w',encoding='utf8'),ensure_ascii=False,indent=1)
     render(thumb,SER[kind],n).save(d+'/thumb.png')
